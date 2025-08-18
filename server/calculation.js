@@ -4,3 +4,4 @@ function calculate(a, b, op) {
   throw new Error('Invalid operation');
 }
 
+//initialize
