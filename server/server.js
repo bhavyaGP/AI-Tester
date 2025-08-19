@@ -15,12 +15,16 @@ app.post('/postdata', (req, res) => {
 app.delete('/deletedata/:id', (req, res) => {
     const { id } = req.params;
     db = db.filter(item => item.id !== id);
+
+
+
+    
     res.json();
 })
 app.put('/updatedata/:id', (req, res) => {
     const { id } = req.params;
     const updatedData = req.body;
-    
+
     db = db.map(item => item.id === id ? updatedData : item);
     res.json(updatedData);
 })
