@@ -20,6 +20,7 @@ app.delete('/deletedata/:id', (req, res) => {
 app.put('/updatedata/:id', (req, res) => {
     const { id } = req.params;
     const updatedData = req.body;
+    
     db = db.map(item => item.id === id ? updatedData : item);
     res.json(updatedData);
 })

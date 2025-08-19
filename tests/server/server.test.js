@@ -7,11 +7,11 @@ describe('GET /getdata', () => {
         expect(response.status).toBe(200);
         expect(response.body).toEqual([]);
     });
-    it('should return the data in the database', async () => {
-        db.push({ id: 1, name: 'test' });
+    it('should return the data from the database', async () => {
+        db.push({id:1, name: 'test'});
         const response = await request(app).get('/getdata');
         expect(response.status).toBe(200);
-        expect(response.body).toEqual([{ id: 1, name: 'test' }]);
+        expect(response.body).toEqual([{id:1, name: 'test'}]);
     });
 });
 
@@ -40,7 +40,7 @@ describe('DELETE /deletedata/:id', () => {
 });
 
 describe('PUT /updatedata/:id', () => {
-    it('should update existing data in the database and return the updated data', async () => {
+    it('should update existing data in the database', async () => {
         db.push({ id: 1, name: 'test' });
         const updatedData = { id: 1, name: 'updated' };
         const response = await request(app).put('/updatedata/1').send(updatedData);
