@@ -15,7 +15,7 @@ app.post('/postdata', (req, res) => {
 app.delete('/deletedata/:id', (req, res) => {
     const { id } = req.params;
     db = db.filter(item => item.id !== id);
-    res.status(204).json();
+    res.json();
 })
 app.put('/updatedata/:id', (req, res) => {
     const { id } = req.params;
