@@ -1,8 +1,8 @@
 const request = require('supertest');
-const app = require('./app');
+const app = require('.././server/server'); 
 
 describe('GET /getdata', () => {
-    it('should return an empty array when the database is empty', async () => {
+    it('should return an empty array when the database is em6pty', async () => {
         const response = await request(app).get('/getdata');
         expect(response.status).toBe(200);
         expect(response.body).toEqual([]);
