@@ -1,7 +1,7 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config(); 
+require("dotenv").config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 function jestPromptTemplate(fileContent) {
@@ -41,7 +41,8 @@ async function generateTests() {
   const changedFiles = rawChanged
     .map((f) => f.replace(/\\/g, "/"))
     .filter(
-      (f) => f.endsWith(".js") && (f.startsWith("server/") || f.includes("/server/"))
+      (f) =>
+        f.endsWith(".js") && (f.startsWith("server/") || f.includes("/server/"))
     );
 
   if (changedFiles.length === 0) {
@@ -68,14 +69,47 @@ async function generateTests() {
       const result = await model.generateContent(prompt);
       const tests = result.response.text();
 
-      const testFileName = `tests/${file.replace(".js", ".test.js")}`;
+      // const testFileName = `tests/${file.replace(".js", ".test.js")}`;
+
+      // If file is already a test file, skip generating new one
+      // if (file.includes(".test.js")) {
+      //   console.log(
+      //     `⏩ Skipping test generation for existing test file: ${file}`
+      //   );
+      //   continue;
+      // }
+
+      // // Generate test file path (inside /tests directory)
+      // const baseName = path.basename(file, ".js"); // e.g. server
+      // const testFileName = path.join("tests", `${baseName}.test.js`);
+
+      // const testDir = path.dirname(testFileName);
+
+      // if (!fs.existsSync(testDir)) fs.mkdirSync(testDir, { recursive: true });
+
+      // fs.writeFileSync(testFileName, tests);
+      // console.log("-------------------------------");
+      // console.log(`Tests generated: ${testFileName}`);
+
+      // Generate test file path (inside /tests directory)
+      const baseName = path.basename(file, ".js"); // e.g., server
+      const testFileName = path.join("tests", `${baseName}.test.js`);
       const testDir = path.dirname(testFileName);
 
-      if (!fs.existsSync(testDir)) fs.mkdirSync(testDir, { recursive: true });
+      if (!fs.existsSync(testDir)) {
+        fs.mkdirSync(testDir, { recursive: true });
+      }
 
-      fs.writeFileSync(testFileName, tests);
-      console.log("-------------------------------")
-      console.log(`Tests generated: ${testFileName}`);
+      // If test file already exists → append new tests
+      if (fs.existsSync(testFileName)) {
+        console.log(
+          `✏️  Appending new tests to existing file: ${testFileName}`
+        );
+        fs.appendFileSync(testFileName, `\n\n${tests}`);
+      } else {
+        console.log(`🆕 Creating new test file: ${testFileName}`);
+        fs.writeFileSync(testFileName, tests);
+      }
     } catch (err) {
       console.error(
         `⚠️ Failed to generate/write tests for ${file}:`,

@@ -1,5 +1,7 @@
 const request = require('supertest');
-const app = require('./app');
+const app = require('../../server'); 
+// if your Express entry file is server.js in root
+
 
 describe('GET /getdata', () => {
     it('should return an empty array when the database is empty', async () => {
