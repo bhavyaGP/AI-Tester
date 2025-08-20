@@ -1,9 +1,9 @@
 const express = require("express");
 const app = express();
 
-app.use(express.json()); // Needed to parse JSON bodies
+app.use(express.json());
 
-let db = []; // Use 'let' since we'll reassign it
+let db = []; // in-memory DB
 
 // GET all data
 app.get("/getdata", (req, res) => {
@@ -14,12 +14,12 @@ app.get("/getdata", (req, res) => {
 app.post("/postdata", (req, res) => {
   const newData = req.body;
   db.push(newData);
-  res.status(201).json(newData); // 201 Created
+  res.status(201).json(newData);
 });
 
 // DELETE data by ID
 app.delete("/deletedata/:id", (req, res) => {
-  const id = parseInt(req.params.id, 10); // ensure numeric
+  const id = parseInt(req.params.id, 10);
   const initialLength = db.length;
   db = db.filter((item) => item.id !== id);
 
@@ -32,7 +32,7 @@ app.delete("/deletedata/:id", (req, res) => {
 
 // PUT update data by ID
 app.put("/updatedata/:id", (req, res) => {
-  const id = parseInt(req.params.id, 10); // ensure numeric
+  const id = parseInt(req.params.id, 10);
   const updatedData = req.body;
   let found = false;
 
@@ -44,14 +44,24 @@ app.put("/updatedata/:id", (req, res) => {
     return item;
   });
 
+  if (!found) {
+    return res.status(404).json({ message: "Item not found" });
+  }
+
   res.status(200).json(updatedData);
 });
 
-// ✅ Only start server if file is run directly, not when imported by Jest
+// ✅ Only listen if run directly
 if (require.main === module) {
   app.listen(3000, () => {
-    console.log("Server is running on port 3000");
+    console.log("Server running on port 3000");
   });
 }
 
-module.exports = app;
+// 👇 Export both app & helper to reset db in tests
+module.exports = {
+  app,
+  resetDb: () => (db = []),
+  setDb: (data) => (db = data),
+  getDb: () => db,
+};
