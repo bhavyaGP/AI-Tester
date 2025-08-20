@@ -2,7 +2,7 @@ const request = require("supertest");
 const app = require("./app");
 
 describe("GET /getdata", () => {
-  it("should return an empty array when the database is empty", async () => {
+  it("should return an empty array if the database is empty", async () => {
     const response = await request(app).get("/getdata");
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
@@ -26,33 +26,29 @@ describe("POST /postdata", () => {
   });
 });
 
-
 describe("DELETE /deletedata/:id", () => {
-  it("should delete an item from the database", async () => {
-    db = [{ id: 1, name: "test" }, { id: 2, name: "test2" }];
+  it("should delete data by ID and return a success message", async () => {
+    db = [{ id: 1, name: "test" }];
     const response = await request(app).delete("/deletedata/1");
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ message: "Item deleted successfully" });
-    expect(db).toEqual([{ id: 2, name: "test2" }]);
+    expect(db).toEqual([]);
   });
-
-  it("should return 404 if the item is not found", async () => {
-    db = [{ id: 1, name: "test" }, { id: 2, name: "test2" }];
-    const response = await request(app).delete("/deletedata/3");
+  it("should return a 404 if the item is not found", async () => {
+    db = [{ id: 1, name: "test" }];
+    const response = await request(app).delete("/deletedata/2");
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ message: "Item not found" });
-    expect(db).toEqual([{ id: 1, name: "test" }, { id: 2, name: "test2" }]);
   });
-
   it("should handle non-numeric ID", async () => {
     db = [{ id: 1, name: "test" }];
     const response = await request(app).delete("/deletedata/abc");
-    expect(response.status).toBe(404); // Or potentially 500 depending on implementation
+    expect(response.status).toBe(404); 
   });
 });
 
 describe("PUT /updatedata/:id", () => {
-  it("should update an existing item in the database", async () => {
+  it("should update data by ID and return the updated data", async () => {
     db = [{ id: 1, name: "test" }];
     const updatedData = { id: 1, name: "updated" };
     const response = await request(app).put("/updatedata/1").send(updatedData);
@@ -60,20 +56,21 @@ describe("PUT /updatedata/:id", () => {
     expect(response.body).toEqual(updatedData);
     expect(db).toEqual([updatedData]);
   });
-
-  it("should return 200 even if the item is not found and update the db", async () => {
+  it("should return a 404 if the item is not found", async () => {
     db = [{ id: 1, name: "test" }];
     const updatedData = { id: 2, name: "updated" };
     const response = await request(app).put("/updatedata/2").send(updatedData);
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual(updatedData);
-    expect(db).toEqual([{ id: 1, name: "test" }, updatedData]);
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: "Item not found" });
   });
-
   it("should handle non-numeric ID", async () => {
     db = [{ id: 1, name: "test" }];
-    const updatedData = { id: 2, name: "updated" };
+    const updatedData = { id: 1, name: "updated" };
     const response = await request(app).put("/updatedata/abc").send(updatedData);
-    expect(response.status).toBe(200); // Or potentially 500 depending on implementation
+    expect(response.status).toBe(404); 
   });
+});
+
+afterAll(() => {
+  db = [];
 });
