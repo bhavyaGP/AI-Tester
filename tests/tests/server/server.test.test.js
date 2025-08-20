@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('./app');
+let db = [];
 
 describe('GET /getdata', () => {
     it('should return an empty array when the database is empty', async () => {
@@ -23,6 +24,16 @@ describe('POST /postdata', () => {
         expect(response.status).toBe(201);
         expect(response.body).toEqual(newData);
         expect(db).toEqual([newData]);
+    });
+    it('should return 400 if id is missing', async () => {
+        const newData = { name: 'test' };
+        const response = await request(app).post('/postdata').send(newData);
+        expect(response.status).toBe(400);
+    });
+    it('should return 400 if name is missing', async () => {
+        const newData = { id: 1 };
+        const response = await request(app).post('/postdata').send(newData);
+        expect(response.status).toBe(400);
     });
 });
 
@@ -61,4 +72,17 @@ describe('PUT /updatedata/:id', () => {
         expect(response.body).toEqual(updatedData);
         expect(db).toEqual([{id: 1, name: 'test'}, { id: 2, name: 'updated'}]);
     });
+    it('should return 400 if id is missing', async () => {
+        db = [{ id: 1, name: 'test' }];
+        const updatedData = { name: 'updated' };
+        const response = await request(app).put('/updatedata/1').send(updatedData);
+        expect(response.status).toBe(400);
+    });
+    it('should return 400 if name is missing', async () => {
+        db = [{ id: 1, name: 'test' }];
+        const updatedData = { id: 1};
+        const response = await request(app).put('/updatedata/1').send(updatedData);
+        expect(response.status).toBe(400);
+    });
 });
+

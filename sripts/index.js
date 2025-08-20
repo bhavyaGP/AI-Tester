@@ -51,7 +51,7 @@ async function generateTests() {
 
   // Gemini client
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   for (const file of changedFiles) {
     if (!fs.existsSync(file)) continue;
