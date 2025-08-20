@@ -44,9 +44,7 @@ app.put("/updatedata/:id", (req, res) => {
     return item;
   });
 
-  if (!found) {
-    return res.status(404).json({ message: "Item not found" });
-  }
+ 
 
   res.status(200).json(updatedData);
 });
