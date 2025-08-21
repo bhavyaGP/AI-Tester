@@ -22,7 +22,7 @@ TEST REQUIREMENTS:
 - Ensure generated code is executable Jest test code
 IMPORTANT RESTRICTIONS:
 - Do NOT include explanations, comments, or extra text
-- Do NOT include markdown (no \`\`\` markers, no formatting)
+- Do NOT include any markdown characters like '''javascript or '''python 
 - Output ONLY pure Jest test code
 `;
 }
