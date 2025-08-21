@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "generate-tests": "node scripts/gen-tests.js",
+    "generate-tests": "node scripts/index.js",
     "test": "jest"
   },
   "keywords": [],
