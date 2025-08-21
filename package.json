@@ -2,7 +2,8 @@
   "name": "iteration",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
+    "scripts": {
+    "generate-tests": "node scripts/gen-tests.js",
     "test": "jest"
   },
   "keywords": [],
