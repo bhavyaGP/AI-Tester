@@ -94,7 +94,7 @@ async function generateTests() {
         console.log(`✏️  Appending new tests → ${testFileName}`);
         fs.appendFileSync(testFileName, `\n\n${tests}`);
       } else {
-        console.log(`🆕 Creating → ${testFileName}`);
+        console.log(`🥅 Creating → ${testFileName}`);
         fs.writeFileSync(testFileName, tests);
       }
     } catch (err) {
