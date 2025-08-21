@@ -27,26 +27,36 @@ IMPORTANT RESTRICTIONS:
 `;
 }
 
-// --- Diff finder (works both locally & GitHub Actions) ---
 function getChangedFiles() {
   try {
-    const baseSha = process.env.BASE_SHA; // set in workflow for PRs
-    const headSha = process.env.HEAD_SHA; // set in workflow for PRs
+    const baseSha = process.env.BASE_SHA;
+    const headSha = process.env.HEAD_SHA;
     let cmd;
 
     if (baseSha && headSha) {
-      // In PR workflow
-      cmd = `git diff  ${baseSha} ${headSha}`;
+      cmd = `git diff --name-only ${baseSha} ${headSha}`;
     } else if (process.env.GITHUB_BASE_REF) {
-      // Push workflow with base ref
-      cmd = `git diff  origin/${process.env.GITHUB_BASE_REF} HEAD`;
+      cmd = `git diff --name-only origin/${process.env.GITHUB_BASE_REF} HEAD`;
     } else {
-      // Local fallback
-      cmd = `git diff  HEAD~1 HEAD`;
+      cmd = null;
     }
 
-    const out = execSync(cmd).toString().trim();
-    return out ? out.split("\n").map(s => s.trim()).filter(Boolean) : [];
+    if (cmd) {
+      const out = execSync(cmd).toString().trim();
+      return out ? out.split("\n").map(s => s.trim()).filter(Boolean) : [];
+    }
+
+    try {
+      execSync('git rev-parse --verify HEAD~1');
+      const out = execSync('git diff --name-only HEAD~1 HEAD').toString().trim();
+      return out ? out.split('\n').map(s => s.trim()).filter(Boolean) : [];
+    } catch (e) {
+      const staged = execSync('git diff --name-only --cached').toString().trim();
+      const unstaged = execSync('git diff --name-only').toString().trim();
+      const untracked = execSync('git ls-files -o --exclude-standard').toString().trim();
+      const combined = [staged, unstaged, untracked].filter(Boolean).join('\n');
+      return combined ? combined.split('\n').map(s => s.trim()).filter(Boolean) : [];
+    }
   } catch (e) {
     console.error("⚠️ Failed to compute git diff:", e.message);
     return [];
@@ -58,15 +68,12 @@ async function generateTests() {
   console.log(`🔍 Found ${rawChanged.length} changed files.`);
   const changedFiles = rawChanged
     .map(f => f.replace(/\\/g, "/"))
-    .filter(
-      f => f.endsWith(".js")
-    );
+    .filter(f => f.endsWith(".js"));
   if (changedFiles.length === 0) {
     console.log("ℹ️  No JS files changed under server/.");
     return;
   }
 
-  // Gemini client
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -98,8 +105,7 @@ async function generateTests() {
         fs.writeFileSync(testFileName, tests);
       }
     } catch (err) {
-      console.error(`⚠️  Failed to generate/write tests for ${file}:`,
-        err && err.message ? err.message : err);
+      console.error(`⚠️  Failed to generate/write tests for ${file}:`, err && err.message ? err.message : err);
       continue;
     }
   }
