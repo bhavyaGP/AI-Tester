@@ -1,0 +1,40 @@
+name: Generate Jest Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize]  # Runs on new PRs or updates to PRs
+  push:
+    branches: [main]  # Adjust 'main' to your default branch if different
+
+jobs:
+  generate-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allows committing/pushing generated files
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetches full history for git diff
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Use a stable Node version
+
+      - name: Install dependencies
+        run: npm install @google/generative-ai dotenv
+
+      - name: Generate tests
+        env:
+          GEMINI_API: ${{ secrets.GEMINI_API }}
+        run: node scripts/generate-tests.js  # Adjust path if script is not in root, e.g., scripts/generate-tests.js
+
+      - name: Commit and push generated tests
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add tests/ || echo "No tests added"
+          git commit -m "Auto-generate Jest tests for changed files" || echo "No changes to commit"
+          git push origin HEAD
