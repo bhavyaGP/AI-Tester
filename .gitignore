@@ -1,2 +1,6 @@
 .env
 node_modules/
+
+# Coverage reports
+coverage/
+*.lcov
