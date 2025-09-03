@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL") 
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+enum AchievementStatus {
+  ACHIEVED
+  NOT_ACHIEVED
+}
+
+model Student {
+  GRno           Int      @id @default(autoincrement())
+  rollno         Int      @unique
+  stud_fname     String
+  stud_lname     String
+  stud_std       Int
+  DOB            DateTime
+  parent_contact String
+  parentname     String
+  student_add    String
+  teacher_id     Int
+  school_id      Int
+  monthlyAttendance MonthlyAttendance[]
+  grades         Grades[]
+  learning_outcomes LearningOutcomes[]
+  activities     ActivityMarks[]
+  achievements   Achievement[]
+  teacher        Teacher  @relation(fields: [teacher_id], references: [teacher_id])
+  school         SchoolSchema @relation(fields: [school_id], references: [school_id])
+}
+
+model MonthlyAttendance {
+  monthly_attendance_id Int      @id @default(autoincrement())
+  rollno                Int
+  month                 Int
+  year                  Int
+  total_present_days    Int
+  total_absent_days     Int
+  total_late_days       Int
+  student               Student  @relation(fields: [rollno], references: [rollno])
+
+  @@index([rollno])
+}
+
+model Grades {
+  grade_id        Int      @id @default(autoincrement())
+  rollno          Int
+  subject_id      String
+  marks_obtained  Int
+  max_marks       Int
+  year            Int
+  student         Student  @relation(fields: [rollno], references: [rollno])
+  subject         Subject  @relation(fields: [subject_id], references: [subject_id])
+
+  @@index([rollno, subject_id])
+}
+
+model LearningOutcomes {
+  outcome_id          Int      @id @default(autoincrement())
+  rollno              Int
+  subject_id          String
+  outcome_description String
+  achieved            AchievementStatus
+  date                DateTime
+  student             Student  @relation(fields: [rollno], references: [rollno])
+  subject             Subject  @relation(fields: [subject_id], references: [subject_id])
+
+  @@index([rollno, subject_id])
+}
+
+model Achievement {
+  achievement_id    Int      @id @default(autoincrement())
+  GRno              Int      // Foreign key from Student (GRno)
+  achievement_title String
+  date              DateTime
+  student_std       Int
+  student           Student  @relation(fields: [GRno], references: [GRno])
+
+  @@index([GRno]) // Index for faster lookups
+}
+
+
+model ActivityMarks {
+  activity_marks_id Int      @id @default(autoincrement())
+  rollno            Int
+  activity_id       String
+  marks_obtained    Decimal  @db.Decimal(10, 2)
+  total_marks       Decimal  @db.Decimal(10, 2)
+  student           Student  @relation(fields: [rollno], references: [rollno])
+  activity          Activity @relation(fields: [activity_id], references: [activity_id])
+
+  @@unique([rollno, activity_id])
+}
+
+model Activity {
+  activity_id      String   @id @unique
+  activity_name    String
+  student_activity ActivityMarks[]
+}
+
+model Subject {
+  subject_id       String   @id @unique
+  subject_name     String
+  grades           Grades[]
+  learning_outcomes LearningOutcomes[]
+}
+
+model Teacher {
+  teacher_id         Int      @id @default(autoincrement())
+  username           String   @unique
+  teacher_fname      String
+  teacher_lname      String
+  allocated_standard String
+  teacher_email      String   @unique
+  school_id          Int
+  password           String
+  DOB                DateTime
+  students           Student[]
+  school             SchoolSchema @relation(fields: [school_id], references: [school_id])
+}
+
+model SchoolSchema {
+  school_id    Int      @id @default(autoincrement())
+  password    String    
+  school_name  String
+  school_dist  String
+  school_add   String
+  students     Student[]
+  teachers     Teacher[]
+  resultout    Boolean   @default(false)
+}

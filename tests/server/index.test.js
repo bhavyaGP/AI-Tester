@@ -1,73 +1,66 @@
-const request = require('supertest');
+const supertest = require('supertest');
 const app = require('../../server/index.js');
+const request = supertest(app);
 
-describe('POST /items', () => {
-  it('should create a new item', async () => {
-    const res = await request(app).post('/items').send({ name: 'Item 1' });
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('id');
-    expect(res.body.name).toBe('Item 1');
+describe('Server', () => {
+  afterAll(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
   });
-});
 
-describe('GET /items', () => {
-  it('should return all items', async () => {
-    await request(app).post('/items').send({ name: 'Item 1' });
-    const res = await request(app).get('/items');
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+  test('GET / responds with 200', async () => {
+    const response = await request.get('/');
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('Meow');
   });
-  it('should return an empty array if no items exist', async () => {
-    const res = await request(app).get('/items');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-  });
-});
 
-describe('GET /items/:id', () => {
-  it('should return an item by ID', async () => {
-    const postRes = await request(app).post('/items').send({ name: 'Item 1' });
-    const itemId = postRes.body.id;
-    const res = await request(app).get(`/items/${itemId}`);
-    expect(res.status).toBe(200);
-    expect(res.body.id).toBe(itemId);
-    expect(res.body.name).toBe('Item 1');
+  test('GET /api/admin should respond with 200', async () => {
+    const response = await request.get('/api/admin');
+    expect(response.status).toBe(200);
   });
-  it('should return 404 if item not found', async () => {
-    const res = await request(app).get('/items/999');
-    expect(res.status).toBe(404);
-    expect(res.body.message).toBe('Item not found');
-  });
-});
 
-describe('PUT /items/:id', () => {
-  it('should update an item by ID', async () => {
-    const postRes = await request(app).post('/items').send({ name: 'Item 1' });
-    const itemId = postRes.body.id;
-    const res = await request(app).put(`/items/${itemId}`).send({ name: 'Updated Item' });
-    expect(res.status).toBe(200);
-    expect(res.body.id).toBe(itemId);
-    expect(res.body.name).toBe('Updated Item');
-  });
-  it('should return 404 if item not found', async () => {
-    const res = await request(app).put('/items/999').send({ name: 'Updated Item' });
-    expect(res.status).toBe(404);
-    expect(res.body.message).toBe('Item not found');
-  });
-});
 
-describe('DELETE /items/:id', () => {
-  it('should delete an item by ID', async () => {
-    const postRes = await request(app).post('/items').send({ name: 'Item 1' });
-    const itemId = postRes.body.id;
-    const res = await request(app).delete(`/items/${itemId}`);
-    expect(res.status).toBe(200);
-    expect(res.body.id).toBe(itemId);
-    expect(res.body.name).toBe('Item 1');
+  test('GET /api/teacher should respond with 200', async () => {
+    const response = await request.get('/api/teacher');
+    expect(response.status).toBe(200);
   });
-  it('should return 404 if item not found', async () => {
-    const res = await request(app).delete('/items/999');
-    expect(res.status).toBe(404);
-    expect(res.body.message).toBe('Item not found');
+
+  test('Server listens on port 3000', () => {
+    const port = app.address().port;
+    expect(port).toBe(3000);
+  });
+
+  test('Server uses correct view engine', () => {
+    expect(app.get('view engine')).toBe('ejs');
+  });
+
+  test('Server uses correct views directory', () => {
+    expect(app.get('views')).toBe(path.resolve("./views"));
+  });
+
+  test('Server uses cors middleware', () => {
+    expect(app._router.stack.some(layer => layer.handle.name === 'cors')).toBe(true);
+  });
+
+  test('Server uses morgan middleware', () => {
+    expect(app._router.stack.some(layer => layer.handle.name === 'morgan')).toBe(true);
+  });
+
+  test('Server uses express.json middleware', () => {
+    expect(app._router.stack.some(layer => layer.handle.name === 'json')).toBe(true);
+  });
+
+  test('Server uses express.urlencoded middleware', () => {
+    expect(app._router.stack.some(layer => layer.handle.name === 'urlencoded')).toBe(true);
+  });
+
+  test('Server uses cookie-parser middleware', () => {
+    expect(app._router.stack.some(layer => layer.handle.name === 'cookieParser')).toBe(true);
+  });
+
+
+  test('handles 404', async () => {
+    const res = await request.get('/nonexistent');
+    expect(res.status).not.toBe(200);
+
   });
 });

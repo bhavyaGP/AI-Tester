@@ -1,54 +1,51 @@
 const express = require('express');
+const cors = require('cors')
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(express.json()); // Middleware to parse JSON
+const morgan = require('morgan');
+require('dotenv').config();
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+const staticroutes = require('./routes/static.js');
+const { checkAuth } = require('./middleware/basicauth.js');
 
-let DB = []; // In-memory database
-let idCounter = 1; // Simple ID generator
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-// CREATE - Add a new item
-app.post('/items', (req, res) => {
-  const newItem = { id: idCounter++, ...req.body };
-  DB.push(newItem);
-  res.status(201).json(newItem);
+const db = require('./connection');
+
+
+const path = require('path');
+
+app.set("view engine", "ejs");
+app.set("views", path.resolve("./views"));
+
+const corsOptions = {
+    origin: process.env.FRONTEND_URL,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.use(morgan("[:date[clf]] :method :url :status :res[content-length] - :response-time ms"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Route handlers
+const teacherRoutes = require('./routes/teacher.js');
+const adminRoutes = require('./routes/admin.js');
+
+// Use the defined routes
+app.use("/", staticroutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/teacher', teacherRoutes);
+
+app.get('/', (req, res) => {
+    res.send('Meow');
 });
 
-// READ - Get all items
-app.get('/items', (req, res) => {
-  res.json(DB);
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
 });
-
-// READ - Get item by ID
-app.get('/items/:id', (req, res) => {
-  const item = DB.find(i => i.id === parseInt(req.params.id));
-  if (!item) return res.status(404).json({ message: 'Item not found' });
-  res.json(item);
-});
-
-// UPDATE - Modify item by ID
-app.put('/items/:id', (req, res) => {
-  const index = DB.findIndex(i => i.id === parseInt(req.params.id));
-  if (index === -1) return res.status(404).json({ message: 'Item not found' });
-
-  DB[index] = { id: DB[index].id, ...req.body };
-  res.json(DB[index]);
-});
-
-// DELETE - Remove item by ID
-app.delete('/items/:id', (req, res) => {
-  const index = DB.findIndex(i => i.id === parseInt(req.params.id));
-  if (index === -1) return res.status(404).json({ message: 'Item not found' });
-
-  const deletedItem = DB.splice(index, 1);
-  res.json(deletedItem[0]);
-});
-
-// Only start the server if this file is run directly (not imported)
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-  });
-}
-
-module.exports = app;
