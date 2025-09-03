@@ -2,10 +2,9 @@ const request = require('supertest');
 const express = require('express');
 const app = express();
 const routes = require('../../server/routes/routes.js');
-const Student = require('../../server/models/students'); // Assuming this model exists
+const Student = require('../../server/models/students'); // Assuming this exists
 
-app.use(express.json());
-app.use('/', routes);
+app.use('/api/students', routes);
 
 // Mock Student model for testing
 jest.mock('../../server/models/students');
@@ -16,170 +15,188 @@ describe('Student Routes', () => {
   });
 
   describe('GET /', () => {
-    it('should return a list of students', async () => {
-      const mockStudents = [{ name: 'Test', surname: 'User' }];
+    it('should get all students', async () => {
+      const mockStudents = [{ name: 'test' }, { name: 'test2' }];
       Student.find.mockResolvedValue(mockStudents);
-      const res = await request(app).get('/');
+      const res = await request(app).get('/api/students/');
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockStudents);
     });
-    it('should handle errors gracefully', async () => {
-      Student.find.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/');
+    it('should handle errors', async () => {
+      Student.find.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
+
 
   describe('POST /', () => {
-    it('should create a new student', async () => {
-      const newStudent = { name: 'Test', surname: 'User' };
-      Student.create.mockResolvedValue(newStudent);
-      const res = await request(app).post('/').send(newStudent);
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual(newStudent);
+    it('should create a student', async () => {
+      const mockStudent = { name: 'test', surname: 'user' };
+      Student.create.mockResolvedValue(mockStudent);
+      const res = await request(app).post('/api/students/').send(mockStudent);
+      expect(res.status).toBe(200); // or 201
+      expect(Student.create).toHaveBeenCalledWith(mockStudent);
     });
-    it('should handle errors gracefully', async () => {
-      Student.create.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).post('/').send({});
+    it('should handle validation errors', async () => {
+      const res = await request(app).post('/api/students/').send({});
+      expect(res.status).toBe(400); // Assuming validation middleware returns 400
+    });
+    it('should handle database errors', async () => {
+      Student.create.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).post('/api/students/').send({name: 'test', surname: 'user'});
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
-
   describe('GET /:id', () => {
-    it('should return a single student', async () => {
-      const student = { _id: '1', name: 'Test', surname: 'User' };
-      Student.findById.mockResolvedValue(student);
-      const res = await request(app).get('/1');
+    it('should get a student by ID', async () => {
+      const mockStudent = { _id: '1', name: 'test' };
+      Student.findById.mockResolvedValue(mockStudent);
+      const res = await request(app).get('/api/students/1');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(student);
+      expect(res.body).toEqual(mockStudent);
     });
     it('should handle not found', async () => {
       Student.findById.mockResolvedValue(null);
-      const res = await request(app).get('/1');
-      expect(res.status).toBe(404); // Or handle appropriately
+      const res = await request(app).get('/api/students/1');
+      expect(res.status).toBe(404); // Or handle differently based on your implementation
     });
-    it('should handle errors gracefully', async () => {
-      Student.findById.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/1');
+    it('should handle database errors', async () => {
+      Student.findById.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/1');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('PUT /:id', () => {
     it('should update a student', async () => {
-      const updatedStudent = { _id: '1', name: 'Updated', surname: 'User' };
-      Student.findByIdAndUpdate.mockResolvedValue(updatedStudent);
-      const res = await request(app).put('/1').send(updatedStudent);
+      const mockStudent = { _id: '1', name: 'test2' };
+      Student.findByIdAndUpdate.mockResolvedValue(mockStudent);
+      const res = await request(app).put('/api/students/1').send({ name: 'test2' });
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(updatedStudent);
+      expect(Student.findByIdAndUpdate).toHaveBeenCalledWith('1', { name: 'test2' }, { new: true });
     });
-    it('should handle errors gracefully', async () => {
-      Student.findByIdAndUpdate.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).put('/1').send({});
+    it('should handle validation errors', async () => {
+      const res = await request(app).put('/api/students/1').send({});
+      expect(res.status).toBe(400); // Assuming validation middleware returns 400
+    });
+    it('should handle not found', async () => {
+      Student.findByIdAndUpdate.mockResolvedValue(null);
+      const res = await request(app).put('/api/students/1').send({ name: 'test2' });
+      expect(res.status).toBe(404); // Or handle differently based on your implementation
+    });
+    it('should handle database errors', async () => {
+      Student.findByIdAndUpdate.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).put('/api/students/1').send({ name: 'test2' });
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('DELETE /:id', () => {
     it('should delete a student', async () => {
       Student.findByIdAndDelete.mockResolvedValue({});
-      const res = await request(app).delete('/1');
-      expect(res.status).toBe(204); // Or handle appropriately
+      const res = await request(app).delete('/api/students/1');
+      expect(res.status).toBe(204); // Or 200 depending on implementation
+      expect(Student.findByIdAndDelete).toHaveBeenCalledWith('1');
     });
-    it('should handle errors gracefully', async () => {
-      Student.findByIdAndDelete.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).delete('/1');
+    it('should handle not found', async () => {
+      Student.findByIdAndDelete.mockResolvedValue(null);
+      const res = await request(app).delete('/api/students/1');
+      expect(res.status).toBe(404); // Or handle differently based on your implementation
+    });
+    it('should handle database errors', async () => {
+      Student.findByIdAndDelete.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).delete('/api/students/1');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('GET /search', () => {
-    it('should search students by name or surname', async () => {
-      const mockStudents = [{ name: 'Test', surname: 'User' }];
+    it('should search students', async () => {
+      const mockStudents = [{ name: 'test' }];
       Student.find.mockResolvedValue(mockStudents);
-      const res = await request(app).get('/search?q=Test');
+      const res = await request(app).get('/api/students/search?q=test');
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockStudents);
     });
-    it('should handle errors gracefully', async () => {
-      Student.find.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/search?q=Test');
+    it('should handle errors', async () => {
+      Student.find.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/search?q=test');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('GET /count', () => {
-    it('should return the total number of students', async () => {
+    it('should get student count', async () => {
       Student.countDocuments.mockResolvedValue(10);
-      const res = await request(app).get('/count');
+      const res = await request(app).get('/api/students/count');
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ count: 10 });
     });
-    it('should handle errors gracefully', async () => {
-      Student.countDocuments.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/count');
+    it('should handle errors', async () => {
+      Student.countDocuments.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/count');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('GET /recent', () => {
-    it('should return recent students', async () => {
-      const mockStudents = [{ name: 'Test', surname: 'User' }];
+    it('should get recent students', async () => {
+      const mockStudents = [{ name: 'test' }];
       Student.find.mockResolvedValue(mockStudents);
-      const res = await request(app).get('/recent');
+      const res = await request(app).get('/api/students/recent');
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockStudents);
     });
-    it('should handle errors gracefully', async () => {
-      Student.find.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/recent');
+    it('should handle errors', async () => {
+      Student.find.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/recent');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('POST /bulk', () => {
     it('should create students in bulk', async () => {
-      const students = [{ name: 'Test1', surname: 'User1' }, { name: 'Test2', surname: 'User2' }];
-      Student.insertMany.mockResolvedValue(students);
-      const res = await request(app).post('/bulk').send(students);
+      const mockStudents = [{ name: 'test' }, { name: 'test2' }];
+      Student.insertMany.mockResolvedValue(mockStudents);
+      const res = await request(app).post('/api/students/bulk').send(mockStudents);
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ inserted: 2 });
     });
-    it('should handle invalid input', async () => {
-      const res = await request(app).post('/bulk').send({});
-      expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty('error');
+    it('should handle validation errors', async () => {
+      const res = await request(app).post('/api/students/bulk').send([{}]);
+      expect(res.status).toBe(400); // Assuming validation middleware returns 400
     });
-    it('should handle errors gracefully', async () => {
-      Student.insertMany.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).post('/bulk').send([]);
+    it('should handle database errors', async () => {
+      Student.insertMany.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).post('/api/students/bulk').send([{name: 'test'}, {name: 'test2'}]);
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 
   describe('GET /surname/:surname', () => {
     it('should find students by surname', async () => {
-      const mockStudents = [{ name: 'Test', surname: 'User' }];
+      const mockStudents = [{ surname: 'test' }];
       Student.find.mockResolvedValue(mockStudents);
-      const res = await request(app).get('/surname/User');
+      const res = await request(app).get('/api/students/surname/test');
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockStudents);
     });
-    it('should handle errors gracefully', async () => {
-      Student.find.mockRejectedValue(new Error('DB error'));
-      const res = await request(app).get('/surname/User');
+    it('should handle errors', async () => {
+      Student.find.mockRejectedValue(new Error('Failed'));
+      const res = await request(app).get('/api/students/surname/test');
       expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
+      expect(res.body).toEqual({error: 'Failed'});
     });
   });
 

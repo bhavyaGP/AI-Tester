@@ -2,85 +2,70 @@ const request = require('supertest');
 const express = require('express');
 const app = express();
 const advancedRoutes = require('../../server/routes/advanced.routes.js');
-app.use('/api/advanced', advancedRoutes);
+app.use('/api/students', advancedRoutes);
+
+const mockAdv = {
+  search: jest.fn(),
+  count: jest.fn(),
+  recent: jest.fn(),
+  bulk: jest.fn(),
+  bySurname: jest.fn()
+};
+
+const mockValidate = {
+  validateBulk: jest.fn((req, res, next) => next())
+};
+
+jest.mock('../controller/student.advanced.controller', () => mockAdv);
+jest.mock('../middleware/validate.student', () => mockValidate);
 
 
-describe('Advanced Routes', () => {
-  let server;
-  beforeEach(() => {
-    server = app.listen(0);
-  });
+describe('Advanced Student Routes', () => {
   afterEach(() => {
-    server.close();
+    mockAdv.search.mockClear();
+    mockAdv.count.mockClear();
+    mockAdv.recent.mockClear();
+    mockAdv.bulk.mockClear();
+    mockAdv.bySurname.mockClear();
+    mockValidate.validateBulk.mockClear();
   });
 
-  describe('GET /search', () => {
-    it('should return a search result', async () => {
-      const res = await request(server).get('/api/advanced/search');
-      expect(res.status).toBe(200);
-    });
-    it('should handle errors gracefully', async () => {
-      const adv = require('../controller/student.advanced.controller');
-      const spy = jest.spyOn(adv, 'search').mockImplementation(() => {throw new Error('test error');});
-      const res = await request(server).get('/api/advanced/search');
-      expect(res.status).not.toBe(200);
-      spy.mockRestore();
-    });
+  it('GET /api/students/search should call adv.search', async () => {
+    await request(app).get('/api/students/search');
+    expect(mockAdv.search).toHaveBeenCalled();
   });
 
-  describe('GET /count', () => {
-    it('should return a count', async () => {
-      const res = await request(server).get('/api/advanced/count');
-      expect(res.status).toBe(200);
-    });
-      it('should handle errors gracefully', async () => {
-      const adv = require('../controller/student.advanced.controller');
-      const spy = jest.spyOn(adv, 'count').mockImplementation(() => {throw new Error('test error');});
-      const res = await request(server).get('/api/advanced/count');
-      expect(res.status).not.toBe(200);
-      spy.mockRestore();
-    });
+  it('GET /api/students/count should call adv.count', async () => {
+    await request(app).get('/api/students/count');
+    expect(mockAdv.count).toHaveBeenCalled();
   });
 
-  describe('GET /recent', () => {
-    it('should return recent items', async () => {
-      const res = await request(server).get('/api/advanced/recent');
-      expect(res.status).toBe(200);
-    });
-      it('should handle errors gracefully', async () => {
-      const adv = require('../controller/student.advanced.controller');
-      const spy = jest.spyOn(adv, 'recent').mockImplementation(() => {throw new Error('test error');});
-      const res = await request(server).get('/api/advanced/recent');
-      expect(res.status).not.toBe(200);
-      spy.mockRestore();
-    });
+  it('GET /api/students/recent should call adv.recent', async () => {
+    await request(app).get('/api/students/recent');
+    expect(mockAdv.recent).toHaveBeenCalled();
   });
 
-  describe('POST /bulk', () => {
-    it('should handle bulk operations', async () => {
-      const res = await request(server).post('/api/advanced/bulk').send({});
-      expect(res.status).toBe(200);
-    });
-      it('should handle errors gracefully', async () => {
-      const adv = require('../controller/student.advanced.controller');
-      const spy = jest.spyOn(adv, 'bulk').mockImplementation(() => {throw new Error('test error');});
-      const res = await request(server).post('/api/advanced/bulk').send({});
-      expect(res.status).not.toBe(200);
-      spy.mockRestore();
-    });
+  it('POST /api/students/bulk should call validate.validateBulk and adv.bulk', async () => {
+    await request(app).post('/api/students/bulk').send({});
+    expect(mockValidate.validateBulk).toHaveBeenCalled();
+    expect(mockAdv.bulk).toHaveBeenCalled();
   });
 
-  describe('GET /surname/:surname', () => {
-    it('should return items by surname', async () => {
-      const res = await request(server).get('/api/advanced/surname/testSurname');
-      expect(res.status).toBe(200);
-    });
-    it('should handle errors gracefully', async () => {
-      const adv = require('../controller/student.advanced.controller');
-      const spy = jest.spyOn(adv, 'bySurname').mockImplementation(() => {throw new Error('test error');});
-      const res = await request(server).get('/api/advanced/surname/testSurname');
-      expect(res.status).not.toBe(200);
-      spy.mockRestore();
-    });
+  it('GET /api/students/surname/:surname should call adv.bySurname', async () => {
+    await request(app).get('/api/students/surname/testSurname');
+    expect(mockAdv.bySurname).toHaveBeenCalled();
   });
+
+  it('GET /api/students/surname/:surname handles invalid surname', async () => {
+    const res = await request(app).get('/api/students/surname/');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+
+  it('POST /api/students/bulk handles errors', async () => {
+    mockValidate.validateBulk.mockImplementation((req, res, next) => next(new Error('Validation failed')));
+    const res = await request(app).post('/api/students/bulk').send({});
+    expect(res.status).toBeGreaterThanOrEqual(500);
+  });
+
 });

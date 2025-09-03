@@ -5,11 +5,12 @@ const sc = require('../controller/student.controller')
 const Student = require('../models/students');
 // Mount advanced routes
 const advanced = require('./advanced.routes');
+const validate = require('../middleware/validate.student');
 
 router.get('/', sc.getStudents);
-router.post('/', sc.createStudent);
+router.post('/', validate.validateCreate, sc.createStudent);
 router.get('/:id', sc.getStudent);
-router.put('/:id', sc.editStudent);
+router.put('/:id', validate.validateCreate, sc.editStudent);
 router.delete('/:id', sc.deleteStudent);
 
 // Search students by name or surname (query param: q)
@@ -46,10 +47,9 @@ router.get('/recent', async (req, res) => {
 });
 
 // Bulk create students: accepts an array of {name, surname} in request body
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', validate.validateBulk, async (req, res) => {
 	try {
 		const list = req.body;
-		if (!Array.isArray(list)) return res.status(400).json({ error: 'Expected an array of students' });
 		const docs = list.map(s => ({ name: s.name, surname: s.surname }));
 		const created = await Student.insertMany(docs);
 		res.json({ inserted: created.length });
