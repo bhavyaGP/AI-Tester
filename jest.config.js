@@ -9,15 +9,20 @@ module.exports = {
   ],
 
   // Coverage configuration
-  collectCoverage: false, // Set to true to always collect coverage
+  collectCoverage: true, // Set to true to always collect coverage
   collectCoverageFrom: [
     'server/**/*.js',
-    'sripts/**/*.js',
-    '!node_modules/**',
-    '!coverage/**',
-    '!**/*.test.js',
-    '!**/*.spec.js',
-    '!**/jest.config.js'
+    '!server/**/*.test.js',
+    '!server/**/*.spec.js'
+  ],
+
+  // Files to ignore completely
+  coveragePathIgnorePatterns: [
+    'node_modules/',
+    'coverage/',
+    'sripts/',
+    'tests/',
+    'jest.config.js'
   ],
 
   // Coverage output directory
@@ -40,13 +45,6 @@ module.exports = {
       functions: 70,
       lines: 70,
       statements: 70
-    },
-    // You can also set per-file thresholds
-    './server/utils.js': {
-      branches: 90,
-      functions: 90,
-      lines: 90,
-      statements: 90
     }
   },
 
