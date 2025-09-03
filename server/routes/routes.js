@@ -3,6 +3,8 @@ const router = express.Router();
 
 const sc = require('../controller/student.controller')
 const Student = require('../models/students');
+// Mount advanced routes
+const advanced = require('./advanced.routes');
 
 router.get('/', sc.getStudents);
 router.post('/', sc.createStudent);
@@ -69,3 +71,6 @@ router.get('/surname/:surname', async (req, res) => {
 });
 
 module.exports = router;
+
+// also export advanced router for mounting by server index if needed
+module.exports.advanced = advanced;

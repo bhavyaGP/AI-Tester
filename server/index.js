@@ -10,7 +10,12 @@ app.use(express.json());
 app.use(cors());
 
 // Routes
-app.use('/api/students', require('./routes/routes'));
+const studentRoutes = require('./routes/routes');
+app.use('/api/students', studentRoutes);
+// mount advanced grouped routes under /api/students/advanced
+if (studentRoutes && studentRoutes.advanced) {
+    app.use('/api/students/advanced', studentRoutes.advanced);
+}
 
 
 
