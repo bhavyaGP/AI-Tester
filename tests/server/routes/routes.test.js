@@ -2,139 +2,188 @@ const request = require('supertest');
 const express = require('express');
 const app = express();
 const routes = require('../../server/routes/routes.js');
-const Student = require('../../server/models/students'); // Assuming this is the correct path
+const Student = require('../../server/models/students'); // Assuming this model exists
 
 app.use(express.json());
-app.use('/students', routes);
+app.use('/', routes);
 
-app.use(function(err, req, res, next) {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
+// Mock Student model for testing
+jest.mock('../../server/models/students');
 
-beforeAll(() => {
-    // Mock the Student model for testing
-    Student.find = jest.fn();
-    Student.create = jest.fn();
-    Student.findById = jest.fn();
-    Student.findByIdAndUpdate = jest.fn();
-    Student.findByIdAndDelete = jest.fn();
-    Student.countDocuments = jest.fn();
-    Student.insertMany = jest.fn();
-});
+describe('Student Routes', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-afterAll(() => {
-  // Clean up mocks
-});
-
-describe('GET /students', () => {
+  describe('GET /', () => {
     it('should return a list of students', async () => {
-        Student.find.mockResolvedValue([{ name: 'test', surname: 'user'}]);
-        const res = await request(app).get('/students');
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual([{ name: 'test', surname: 'user'}]);
+      const mockStudents = [{ name: 'Test', surname: 'User' }];
+      Student.find.mockResolvedValue(mockStudents);
+      const res = await request(app).get('/');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockStudents);
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.find.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('POST /students', () => {
+  describe('POST /', () => {
     it('should create a new student', async () => {
-        Student.create.mockResolvedValue({ name: 'test', surname: 'user'});
-        const res = await request(app).post('/students').send({ name: 'test', surname: 'user' });
-        expect(res.status).toBe(200);
+      const newStudent = { name: 'Test', surname: 'User' };
+      Student.create.mockResolvedValue(newStudent);
+      const res = await request(app).post('/').send(newStudent);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(newStudent);
     });
-    it('should handle errors', async () => {
-        Student.create.mockRejectedValue(new Error('Test error'));
-        const res = await request(app).post('/students').send({ name: 'test', surname: 'user' });
-        expect(res.status).toBe(500);
+    it('should handle errors gracefully', async () => {
+      Student.create.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).post('/').send({});
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
     });
-});
+  });
 
-describe('GET /students/:id', () => {
+
+  describe('GET /:id', () => {
     it('should return a single student', async () => {
-        Student.findById.mockResolvedValue({ name: 'test', surname: 'user'});
-        const res = await request(app).get('/students/123');
-        expect(res.status).toBe(200);
+      const student = { _id: '1', name: 'Test', surname: 'User' };
+      Student.findById.mockResolvedValue(student);
+      const res = await request(app).get('/1');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(student);
     });
-    it('should handle errors', async () => {
-        Student.findById.mockRejectedValue(new Error('Test error'));
-        const res = await request(app).get('/students/123');
-        expect(res.status).toBe(500);
+    it('should handle not found', async () => {
+      Student.findById.mockResolvedValue(null);
+      const res = await request(app).get('/1');
+      expect(res.status).toBe(404); // Or handle appropriately
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.findById.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/1');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('PUT /students/:id', () => {
+  describe('PUT /:id', () => {
     it('should update a student', async () => {
-        Student.findByIdAndUpdate.mockResolvedValue({ name: 'test2', surname: 'user2'});
-        const res = await request(app).put('/students/123').send({ name: 'test2', surname: 'user2'});
-        expect(res.status).toBe(200);
+      const updatedStudent = { _id: '1', name: 'Updated', surname: 'User' };
+      Student.findByIdAndUpdate.mockResolvedValue(updatedStudent);
+      const res = await request(app).put('/1').send(updatedStudent);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(updatedStudent);
     });
-    it('should handle errors', async () => {
-        Student.findByIdAndUpdate.mockRejectedValue(new Error('Test error'));
-        const res = await request(app).put('/students/123').send({ name: 'test2', surname: 'user2'});
-        expect(res.status).toBe(500);
+    it('should handle errors gracefully', async () => {
+      Student.findByIdAndUpdate.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).put('/1').send({});
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
     });
-});
+  });
 
-describe('DELETE /students/:id', () => {
+  describe('DELETE /:id', () => {
     it('should delete a student', async () => {
-        Student.findByIdAndDelete.mockResolvedValue({ name: 'test', surname: 'user'});
-        const res = await request(app).delete('/students/123');
-        expect(res.status).toBe(200);
+      Student.findByIdAndDelete.mockResolvedValue({});
+      const res = await request(app).delete('/1');
+      expect(res.status).toBe(204); // Or handle appropriately
     });
-    it('should handle errors', async () => {
-        Student.findByIdAndDelete.mockRejectedValue(new Error('Test error'));
-        const res = await request(app).delete('/students/123');
-        expect(res.status).toBe(500);
+    it('should handle errors gracefully', async () => {
+      Student.findByIdAndDelete.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).delete('/1');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
     });
-});
+  });
 
-
-describe('GET /students/search', () => {
+  describe('GET /search', () => {
     it('should search students by name or surname', async () => {
-        Student.find.mockResolvedValue([{ name: 'test', surname: 'user'}]);
-        const res = await request(app).get('/students/search?q=test');
-        expect(res.status).toBe(200);
+      const mockStudents = [{ name: 'Test', surname: 'User' }];
+      Student.find.mockResolvedValue(mockStudents);
+      const res = await request(app).get('/search?q=Test');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockStudents);
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.find.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/search?q=Test');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('GET /students/count', () => {
+  describe('GET /count', () => {
     it('should return the total number of students', async () => {
-        Student.countDocuments.mockResolvedValue(10);
-        const res = await request(app).get('/students/count');
-        expect(res.status).toBe(200);
-        expect(res.body.count).toBe(10);
+      Student.countDocuments.mockResolvedValue(10);
+      const res = await request(app).get('/count');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ count: 10 });
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.countDocuments.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/count');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('GET /students/recent', () => {
+  describe('GET /recent', () => {
     it('should return recent students', async () => {
-        Student.find.mockResolvedValue([{ name: 'test', surname: 'user'}]);
-        const res = await request(app).get('/students/recent');
-        expect(res.status).toBe(200);
+      const mockStudents = [{ name: 'Test', surname: 'User' }];
+      Student.find.mockResolvedValue(mockStudents);
+      const res = await request(app).get('/recent');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockStudents);
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.find.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/recent');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('POST /students/bulk', () => {
+  describe('POST /bulk', () => {
     it('should create students in bulk', async () => {
-        Student.insertMany.mockResolvedValue([{ name: 'test', surname: 'user'}]);
-        const res = await request(app).post('/students/bulk').send([{ name: 'test', surname: 'user'}]);
-        expect(res.status).toBe(200);
-    });
-    it('should handle errors', async () => {
-        Student.insertMany.mockRejectedValue(new Error('Test error'));
-        const res = await request(app).post('/students/bulk').send([{ name: 'test', surname: 'user'}]);
-        expect(res.status).toBe(500);
+      const students = [{ name: 'Test1', surname: 'User1' }, { name: 'Test2', surname: 'User2' }];
+      Student.insertMany.mockResolvedValue(students);
+      const res = await request(app).post('/bulk').send(students);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ inserted: 2 });
     });
     it('should handle invalid input', async () => {
-        const res = await request(app).post('/students/bulk').send({});
-        expect(res.status).toBe(400);
+      const res = await request(app).post('/bulk').send({});
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error');
     });
-});
+    it('should handle errors gracefully', async () => {
+      Student.insertMany.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).post('/bulk').send([]);
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
 
-describe('GET /students/surname/:surname', () => {
-    it('should find students by exact surname', async () => {
-        Student.find.mockResolvedValue([{ name: 'test', surname: 'user'}]);
-        const res = await request(app).get('/students/surname/user');
-        expect(res.status).toBe(200);
+  describe('GET /surname/:surname', () => {
+    it('should find students by surname', async () => {
+      const mockStudents = [{ name: 'Test', surname: 'User' }];
+      Student.find.mockResolvedValue(mockStudents);
+      const res = await request(app).get('/surname/User');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockStudents);
     });
+    it('should handle errors gracefully', async () => {
+      Student.find.mockRejectedValue(new Error('DB error'));
+      const res = await request(app).get('/surname/User');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error');
+    });
+  });
+
+  it('should export advanced routes', () => {
+    expect(routes.advanced).toBeDefined();
+  });
 });

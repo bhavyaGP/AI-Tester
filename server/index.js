@@ -17,6 +17,9 @@ if (studentRoutes && studentRoutes.advanced) {
     app.use('/api/students/advanced', studentRoutes.advanced);
 }
 
+// Admin routes for management and exports (dev only)
+app.use('/api/admin', require('./routes/admin.routes'));
+
 
 
 app.listen(port, () => {
