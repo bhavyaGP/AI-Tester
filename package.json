@@ -8,7 +8,21 @@
     "test:coverage:watch": "jest --coverage --watchAll",
     "test:coverage:html": "jest --coverage --coverageReporters=html",
     "test:watch": "jest --watchAll",
-    "test:ci": "jest --ci --coverage --watchAll=false"
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "ai-test": "node sripts/ai-test-generator-main.js",
+    "ai-test:dry-run": "node sripts/ai-test-generator-main.js --dry-run",
+    "ai-test:verbose": "node sripts/ai-test-generator-main.js --verbose",
+    "ai-test:coverage-only": "node sripts/ai-test-generator-main.js --coverage-only",
+    "health-check": "node sripts/health-check.js",
+    "health-server": "HEALTH_CHECK_SERVER=true node sripts/health-check.js",
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "docker:build": "docker build -t ai-test-generator .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "lint": "eslint server/ sripts/ --ext .js",
+    "lint:fix": "eslint server/ sripts/ --ext .js --fix",
+    "prepare": "node sripts/setup-hooks.js"
   },
   "keywords": [],
   "author": "",
@@ -16,11 +30,14 @@
   "description": "",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^0.3.73",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "jest": "^30.0.5",
     "mongoose": "^8.18.0",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
   }
 }
