@@ -10,15 +10,7 @@ app.use(express.json());
 app.use(cors());
 
 // Routes
-const studentRoutes = require('./routes/routes');
-app.use('/api/students', studentRoutes);
-// mount advanced grouped routes under /api/students/advanced
-if (studentRoutes && studentRoutes.advanced) {
-    app.use('/api/students/advanced', studentRoutes.advanced);
-}
-
-// Admin routes for management and exports (dev only)
-app.use('/api/admin', require('./routes/admin.routes'));
+app.use('/api/students', require('./routes/routes'));
 
 
 
