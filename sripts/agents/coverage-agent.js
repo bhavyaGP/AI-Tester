@@ -465,3 +465,23 @@ class CoverageAgent {
 }
 
 module.exports = CoverageAgent;
+
+// If executed directly, run a coverage analysis and print summary
+if (require.main === module) {
+  (async () => {
+    try {
+      const agent = new CoverageAgent();
+      const results = await agent.runCoverageAnalysis();
+      if (results) {
+        console.log('\u2705 Coverage analysis ran successfully');
+        console.log(JSON.stringify({ overall: results.overall, summary: results.summary }, null, 2));
+        process.exit(0);
+      }
+      console.log('\u26a0\ufe0f Coverage analysis produced no results');
+      process.exit(1);
+    } catch (err) {
+      console.error('\u274c Coverage agent failed:', err && err.message ? err.message : err);
+      process.exit(1);
+    }
+  })();
+}

@@ -403,3 +403,19 @@ class GitAnalyzer {
 }
 
 module.exports = GitAnalyzer;
+
+// If executed directly, print a summary of changes between HEAD~1 and HEAD
+if (require.main === module) {
+  (async () => {
+    try {
+      const git = new GitAnalyzer();
+      const changes = await git.analyzeChanges();
+      console.log('\u2705 Git analysis complete');
+      console.log(JSON.stringify(changes, null, 2));
+      process.exit(0);
+    } catch (err) {
+      console.error('\u274c Git analyzer failed:', err && err.message ? err.message : err);
+      process.exit(1);
+    }
+  })();
+}
