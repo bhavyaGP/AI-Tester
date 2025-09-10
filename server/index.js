@@ -1,19 +1,29 @@
 const express = require('express');
-const cors = require('cors');
+//CRUD operation
 const app = express();
 
-const {mongoose} = require('./db');
-
-var port = 3000;
 
 app.use(express.json());
-app.use(cors());
 
-// Routes
-app.use('/api/students', require('./routes/routes'));
-
-
-
-app.listen(port, () => {
-    console.log(`Listen on ${port} port`);
+app.get('/', (req, res) => {
+    res.send('Hello World');
 });
+app.post('/data', (req, res) => {
+    const data = req.body;
+    res.send(data);
+});
+app.put('/data/:id', (req, res) => {
+    const id = req.params.id;
+    const data = req.body;
+    res.send({ id, data });
+});
+app.delete('/data/:id', (req, res) => {
+    const id = req.params.id;
+    res.send({ id });
+});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+}   
+);
+module.exports = app;
