@@ -15,8 +15,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 dotenv.config();
 const port = process.env.PORT || 5000;
 
-connectDB();
-
+// Create app and export it so tests can import without starting the server.
 const app = express();
 
 app.use(express.json());
@@ -36,4 +35,10 @@ app.get("/api/config/paypal", (req, res) => {
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname + "/uploads")));
 
-app.listen(port, () => console.log(`Server running on port: ${port}`));
+// Only connect to DB and start listening when not running tests.
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+  app.listen(port, () => console.log(`Server running on port: ${port}`));
+}
+
+export default app;

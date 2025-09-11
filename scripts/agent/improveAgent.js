@@ -4,6 +4,10 @@ const improvePromptTemplate = require("../prompts/improvePrompt");
 const { getRelativeImport, ensureDir } = require("../tools/fileUtils");
 const { ai } = require("../config/aiconfig");
 async function improveAgent(file, errorLogs) {
+  if (!fs.existsSync(file)) {
+    console.log(`⚠️ File ${file} does not exist. Skipping.`);
+    return;
+  }
   const fileContent = fs.readFileSync(file, "utf8");
   const baseName = path.basename(file, ".js");
   const relativeDir = path.dirname(file);

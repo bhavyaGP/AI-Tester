@@ -5,7 +5,7 @@ function getChangedFiles() {
     .toString()
     .split("\n")
     .map((f) => f.trim())
-    .filter((f) => f.endsWith(".js") && f);
+    .filter((f) => f && f.endsWith(".js") && (/^server\/|\/server\//).test(f))
 
   return changedFiles;
 }

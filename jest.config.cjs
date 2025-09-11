@@ -55,7 +55,10 @@ module.exports = {
   moduleFileExtensions: ['js', 'json'],
 
   // Transform files
-  transform: {},
+  // Use babel-jest to transform ES module syntax so tests can use import
+  transform: {
+    '^.+\\.js$': 'babel-jest'
+  },
 
   // Clear mocks between tests
   clearMocks: true,
