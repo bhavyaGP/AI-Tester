@@ -1,6 +1,6 @@
-const { execSync } = require("child_process");
+import { execSync } from "child_process";
 
-function getChangedFiles() {
+export function getChangedFiles() {
   const changedFiles = execSync("git diff --name-only HEAD~1 HEAD")
     .toString()
     .split("\n")
@@ -9,5 +9,3 @@ function getChangedFiles() {
 
   return changedFiles;
 }
-
-module.exports = { getChangedFiles };

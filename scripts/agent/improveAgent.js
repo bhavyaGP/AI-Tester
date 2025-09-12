@@ -1,8 +1,8 @@
-const fs = require("fs");
-const path = require("path");
-const improvePromptTemplate = require("../prompts/improvePrompt");
-const { getRelativeImport, ensureDir } = require("../tools/fileUtils");
-const { ai } = require("../config/aiconfig");
+import fs from "fs";
+import path from "path";
+import improvePromptTemplate from "../prompts/improvePrompt.js";
+import { getRelativeImport, ensureDir } from "../tools/fileUtils.js";
+import { ai } from "../config/aiconfig.js";
 async function improveAgent(file, errorLogs) {
   if (!fs.existsSync(file)) {
     console.log(`⚠️ File ${file} does not exist. Skipping.`);
@@ -22,8 +22,8 @@ async function improveAgent(file, errorLogs) {
   const prompt = improvePromptTemplate(fileContent, relativeImport, errorLogs);
 
   console.log(`🔄 Improving tests for ${file}`);
-  if (errorLogs) {
-    console.log(`📋 Error context received: ${errorLogs.substring(0, 200)}${errorLogs.length > 200 ? '...' : ''}`);
+  if (errorLogs && errorLogs.trim()) {
+    console.log(`📋 Error context received (${errorLogs.length} chars): ${errorLogs.substring(0, 200)}${errorLogs.length > 200 ? '...' : ''}`);
   } else {
     console.log(`📋 No error context provided`);
   }
@@ -42,4 +42,4 @@ async function improveAgent(file, errorLogs) {
   return testFileName;
 }
 
-module.exports = { improveAgent };
+export { improveAgent };

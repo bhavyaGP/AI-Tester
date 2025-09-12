@@ -1,8 +1,8 @@
-const fs = require("fs");
-const path = require("path");
-const jestPromptTemplate = require("../prompts/jestPrompt");
-const { getRelativeImport, ensureDir } = require("../tools/fileUtils");
-const { ai } = require("../config/aiconfig");
+import fs from "fs";
+import path from "path";
+import jestPromptTemplate from "../prompts/jestPrompt.js";
+import { getRelativeImport, ensureDir } from "../tools/fileUtils.js";
+import { ai } from "../config/aiconfig.js";
 
 async function mainAgent(file) {
   if (!fs.existsSync(file)) {
@@ -40,4 +40,4 @@ async function mainAgent(file) {
   return testFileName;
 }
 
-module.exports = { mainAgent };
+export { mainAgent };

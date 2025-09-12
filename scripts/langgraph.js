@@ -1,8 +1,8 @@
-const { StateGraph } = require("@langchain/langgraph");
-const { mainAgent } = require("./agent/mainAgent");
-const { improveAgent } = require("./agent/improveAgent");
-const { runCoverage } = require("./tools/coverageUtils");
-const { getChangedFiles } = require("./tools/gitdiffUtils");
+import { StateGraph } from "@langchain/langgraph";
+import { mainAgent } from "./agent/mainAgent.js";
+import { improveAgent } from "./agent/improveAgent.js";
+import { runCoverage } from "./tools/coverageUtils.js";
+import { getChangedFiles } from "./tools/gitdiffUtils.js";
 
 const COVERAGE_THRESHOLD = 80;
 
@@ -31,19 +31,35 @@ function buildWorkflow() {
 
   // Node 3: Coverage Tool
   workflow.addNode("coverageTool", async (state) => {
-    let coverage = 0;
-    let errorLogs = "";
-
-    try {
-      require("child_process").execSync("npx jest --coverage", { stdio: "inherit" });
-    } catch (err) {
-      errorLogs = err.stdout?.toString() || err.message;
+    const result = runCoverage();
+    console.log(`--- Coverage Tool Result for ${state.file} ---`);
+    console.log(result.output);
+    console.log(`--------------------------------------------`);
+    console.log(`📊 Coverage for ${state.file}: ${result.coverage}%`);
+    
+    // Log coverage summary if available
+    if (result.summary) {
+      console.log("📋 Coverage Summary:");
+      console.log(`  Statements: ${result.summary.total.statements.pct}%`);
+      console.log(`  Branches: ${result.summary.total.branches.pct}%`);
+      console.log(`  Functions: ${result.summary.total.functions.pct}%`);
+      console.log(`  Lines: ${result.summary.total.lines.pct}%`);
     }
-
-    coverage = runCoverage();
-    console.log(`📊 Coverage for ${state.file}: ${coverage}%`);
-
-    return { ...state, coverage, errorLogs };
+    
+    // Combine output and errors for comprehensive error logs
+    let errorLogs = "";
+    if (result.errors) {
+      errorLogs += `ERRORS:\n${result.errors}\n\n`;
+    }
+    if (result.output) {
+      errorLogs += `OUTPUT:\n${result.output}`;
+    }
+    
+    return { 
+      ...state, 
+      coverage: result.coverage, 
+      errorLogs: errorLogs.trim() 
+    };
   });
 
   // Conditional edges
@@ -81,4 +97,4 @@ async function runLangGraph() {
   }
 }
 
-module.exports = { runLangGraph };
+export { runLangGraph };
