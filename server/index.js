@@ -1,49 +1,44 @@
-const express = require('express');
+// packages
+import path from "path";
+import express from "express";
+import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+
+// Utiles
+import connectDB from "./config/db.js";
+import userRoutes from "./routes/userRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+
+dotenv.config();
+const port = process.env.PORT || 5000;
+
+// Create app and export it so tests can import without starting the server.
 const app = express();
-const PORT = 3000;
 
-app.use(express.json()); // Middleware to parse JSON
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-let DB = []; // In-memory database
-let idCounter = 1; // Simple ID generator
+app.use("/api/users", userRoutes);
+app.use("/api/category", categoryRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/orders", orderRoutes);
 
-// CREATE - Add a new item
-app.post('/items', (req, res) => {
-  const newItem = { id: idCounter++, ...req.body };
-  DB.push(newItem);
-  res.status(201).json(newItem);
+app.get("/api/config/paypal", (req, res) => {
+  res.send({ clientId: process.env.PAYPAL_CLIENT_ID });
 });
 
-// READ - Get all items
-app.get('/items', (req, res) => {
-  res.json(DB);
-});
+const __dirname = path.resolve();
+app.use("/uploads", express.static(path.join(__dirname + "/uploads")));
 
-// READ - Get item by ID
-app.get('/items/:id', (req, res) => {
-  const item = DB.find(i => i.id === parseInt(req.params.id));
-  if (!item) return res.status(404).json({ message: 'Item not found' });
-  res.json(item);
-});
+// Only connect to DB and start listening when not running tests.
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+  app.listen(port, () => console.log(`Server running on port: ${port}`));
+}
 
-// UPDATE - Modify item by ID
-app.put('/items/:id', (req, res) => {
-  const index = DB.findIndex(i => i.id === parseInt(req.params.id));
-  if (index === -1) return res.status(404).json({ message: 'Item not found' });
-
-  DB[index] = { id: DB[index].id, ...req.body };
-  res.json(DB[index]);
-});
-
-// DELETE - Remove item by ID
-app.delete('/items/:id', (req, res) => {
-  const index = DB.findIndex(i => i.id === parseInt(req.params.id));
-  if (index === -1) return res.status(404).json({ message: 'Item not found' });
-
-  const deletedItem = DB.splice(index, 1);
-  res.json(deletedItem[0]);
-});
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+export default app;
