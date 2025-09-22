@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Results</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #333;
+            line-height: 1.5;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 24px;
+        }
+        
+        .score-display {
+            padding: 16px;
+            margin-bottom: 24px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        
+        .score-value {
+            font-size: 24px;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+        
+        .topic {
+            display: inline-block;
+            background-color: #e0e0e0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .correct {
+            color: #2e7d32;
+        }
+        
+        .incorrect {
+            color: #c62828;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 16px;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+            
+            .result-column {
+                width: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Quiz Results</h1>
+    
+    <div class="score-display">
+        <div>Quiz Topic: <span class="topic"><%= topic %></span></div>
+        <div class="score-value"><%= score %>/<%= totalscore %></div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Question</th>
+                <th>Your Answer</th>
+                <th>Correct Answer</th>
+                <th class="result-column">Result</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% questions.forEach((question, index) => { %>
+            <tr>
+                <td><%= index + 1 %></td>
+                <td><%= question.text %></td>
+                <td><%= question.yourAnswer %></td>
+                <td><%= question.correctAnswer %></td>
+                <td class="<%= question.isCorrect ? 'correct' : 'incorrect' %>">
+                    <%= question.isCorrect ? '✓ Correct' : '✗ Incorrect' %>
+                </td>
+            </tr>
+            <% }) %>
+        </tbody>
+    </table>
+</body>
+</html>
