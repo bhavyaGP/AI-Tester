@@ -18,7 +18,7 @@ async function getPendingTeacherRequests(req, res) {
       pendingTeachers,
     });
   } catch (error) {
-    console.error("Error fetching pending teacher requests:", error);
+    console.log("Error fetching pending teacher requests:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching teacher requests",
@@ -130,7 +130,7 @@ async function handleTeacherRequest(req, res) {
       message: `Teacher ${action === "approve" ? "approved" : "rejected"} successfully`,
     });
   } catch (error) {
-    console.error("Error processing teacher request:", error);
+    console.log("Error processing teacher request:", error);
     res.status(500).json({
       success: false,
       message: "Error processing teacher request",
@@ -158,7 +158,7 @@ async function getNewStudents(req, res) {
       students: newStudents,
     });
   } catch (error) {
-    console.error("Error fetching new students:", error);
+    console.log("Error fetching new students:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching new students",

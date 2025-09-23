@@ -30,6 +30,9 @@ async function improveAgent(file, errorLogs) {
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
+    config: {
+      temperature: 0.2,
+    },
     contents: [
       { role: "user", parts: [{ text: "You are an expert analysis assistant for unit test generation. Carefully analyze the provided code, error logs, and existing tests to identify failures, gaps in coverage, and areas for improvement. Generate or modify Jest tests that address these issues, ensuring comprehensive coverage, robustness, and adherence to best practices." }] },
       { role: "user", parts: [{ text: prompt }] }

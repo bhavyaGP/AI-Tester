@@ -31,28 +31,17 @@ function buildWorkflow() {
 
   // Node 3: Coverage Tool
   workflow.addNode("coverageTool", async (state) => {
-    const result = runCoverage();
-    console.log(`--- Coverage Tool Result for ${state.file} ---`);
-    console.log(result.output);
-    console.log(`--------------------------------------------`);
-    console.log(`📊 Coverage for ${state.file}: ${result.coverage}%`);
-    
-    // Log coverage summary if available
-    if (result.summary) {
-      console.log("📋 Coverage Summary:");
-      console.log(`  Statements: ${result.summary.total.statements.pct}%`);
-      console.log(`  Branches: ${result.summary.total.branches.pct}%`);
-      console.log(`  Functions: ${result.summary.total.functions.pct}%`);
-      console.log(`  Lines: ${result.summary.total.lines.pct}%`);
-    }
-    
-    // Combine output and errors for comprehensive error logs
+    console.log(`Running coverage tool for ${state.file}`);
+    const result = runCoverage(state.file);
+    console.log(" result:", result);
+
+
+    // Use enhanced manual error extraction instead of summary JSON
     let errorLogs = "";
-    if (result.errors) {
-      errorLogs += `ERRORS:\n${result.errors}\n\n`;
-    }
-    if (result.output) {
-      errorLogs += `OUTPUT:\n${result.output}`;
+    if (result.errorSnippets) {
+      errorLogs = result.errorSnippets;
+    } else if (result.errors) {
+      errorLogs = result.errors;
     }
     
     return { 

@@ -6,6 +6,14 @@ export function getChangedFiles() {
     .split("\n")
     .map((f) => f.trim())
     .filter((f) => f && f.endsWith(".js") && (/^server\/|\/server\//).test(f))
+    .filter((f) => {
+      try {
+        require("fs").accessSync(f);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
   return changedFiles;
 }

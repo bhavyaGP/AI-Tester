@@ -1,61 +1,93 @@
-export default function jestPromptTemplate(fileContent, relativeImport) {
-    return `
+import { loadEnvExample } from '../tools/envUtils.js';
+
+export default function improvePromptTemplate(fileContent, relativeImport, errorLogs = '', envVariables = null) {
+  // Load environment variables from .env.example or use defaults (optimized for testing)
+  const environmentVars = envVariables || loadEnvExample(process.cwd(), true);
+
+  return `
+    You are an expert Jest test fixer.  
+    Previous tests failed or coverage was too low.
+    
+    === FILE PATH IMPORT ===
+    ${relativeImport}
+    
     === CODE START ===
     ${fileContent}
     === CODE END ===
+    
+    === ERROR LOGS / UNCOVERED BRANCHES ===
+    ${errorLogs}
 
-    RULES (MANDATORY):
-    1) IMPORT THE TARGET USING THE PROVIDED RELATIVE PATH
-    - Always import the target module using the exact provided path: ${relativeImport}
-    - Use ES module 'import' if the file contains 'import'/ 'export'; otherwise use CommonJS 'require()'.
+    ==== Current Environment Example ====
+    ${JSON.stringify(process.env, null, 2)}
+    
+    RULES FOR FIXING:
+    1. **ANALYZE FAILURES**
+     - Identify exactly why the test failed (wrong DB name, wrong status code, wrong error message, missing mock, schema not registered, model not exported).
+     - Modify only what is needed to align with the actual implementation in the source file.
+    
+    2. **KEEP BEHAVIOR CONSISTENT WITH CODE**
+     - If the code uses "mongodb://localhost:27017/testdb", tests must expect exactly "testdb".
+     - If the code returns 'res.status(400).json({ message: "Invalid token." })', tests must expect exactly that.
+     - Do not assume or invent behavior that is not present in the source code.
+    
+    3. **MOCK AND IMPORT ORDER (STRICT)**
+     - Declare all mock function variables BEFORE assigning/using them to avoid TDZ errors ("Cannot access 'mockX' before initialization").
+     - Call 'jest.mock(...)' for external modules BEFORE requiring/importing the target module so mocks apply correctly.
+     - If the target module reads environment variables at import time, set process.env' BEFORE requiring it.  
+     - Use 'jest.resetModules()' when re-importing a module in different scenarios to reset its state.
+    
+    4. **EXPORT AND MODEL HANDLING**
+     - If the app defines a Mongoose model, ensure it is exported from the app/server file.
+     - In tests, always import the exported model instead of calling 'mongoose.model('ModelName')' directly, to avoid "Schema hasn't been registered" or missing functions like 'deleteMany'.
+    
+    5. **COVERAGE IMPROVEMENT**
+     - Add missing tests for uncovered branches, conditionals, and error handling.
+     - Ensure all branches of try/catch blocks and all permission checks are tested (e.g., self vs. admin, valid vs. invalid token, success vs. failure cases).
+    
+    6. **MOCK STABILITY**
+     - Ensure mocks are not reset incorrectly between tests.
+     - Centralize 'jwt.verify' and 'jwt.sign' mocks so all routes behave consistently.
+     - Mock 'mongoose.connect' properly before requiring the connection function to test DB connection logic.
 
-    2) EXPORT DETECTION (STRICT)
-    - FIRST, analyze ${fileContent} and explicitly list the detected exports (functions, classes, router, etc.). Base ALL tests strictly on those detected exports. Do not invent new exports.
-
-    3) DETECT ROUTER VS FUNCTIONS
-    - If the file exports an Express Router (e.g., 'export default router' or 'module.exports = router'), generate a 'supertest' suite that mounts the router on a fresh 'express()' app and exercises each route.
-    - If the file exports functions (controllers, services, helpers), generate unit tests that call exported functions directly.
-    - If detection is unclear, produce both: unit tests for exported functions and a minimal router mounting suite. Both must import the target via ${relativeImport}.
-
-    4) MOCK EXTERNAL DEPENDENCIES
-    - For third-party libraries (mongoose, axios, fs, etc.), always use 'jest.mock()' and mockResolvedValue / mockRejectedValue for async calls. 
-    - Do NOT assert against real library error messages. Instead, configure mocks to throw 'new Error("mock error")' and assert handling in your code (e.g., logging, next(err)).
-
-    5) COVERAGE REQUIREMENTS
-    - Include tests for happy paths and negative/error cases for every exported symbol.
-    - Cover edge cases (empty arrays, missing fields, boundary numbers/strings).
-    - Exercise conditional branches by forcing dependency returns/throws.
-    - For controllers, assert that 'next(err)' is called on errors.
-
-    6) ROUTE TEST DETAILS (when generating router tests)
-    - Use 'supertest' to send requests to the mounted app.
-    - Mock controllers (if routes delegate to controllers) and assert controller invocation and response forwarding.
-    - Provide at least one test for protected routes with successful auth and one for unauthorized access.
-
-    7) UNIT TEST DETAILS (when generating unit/controller tests)
-    - Use 'node-mocks-http' or minimal 'req/res' objects. Show 'beforeEach'/ 'afterEach' to reset mocks: 'jest.clearAllMocks()'.
-    - For async controllers, await the call and assert status and JSON payloads.
-
-    8) DB & INTEGRATION (ONLY when necessary)
-    - Avoid real DB connections. If real DB behavior is required, use 'mongodb-memory-server' with proper 'beforeAll'/ 'afterAll' hooks.
-
-    9) MOCKS & SPYING
-    - Use 'jest.mock()' for imported models/services and configure return values or throw errors per test.
-    - Use 'jest.spyOn()' or mock implementations to assert calls.
-
-    10) TEST STRUCTURE
-    - Group tests with 'describe' and use 'it'/ 'test' for behaviors with meaningful descriptions.
-    - Provide 'beforeEach'/ 'afterEach' hooks to reset environment and clear mocks.
-
-    11) FAIL-SAFE
-    - If unable to detect exports precisely, generate both small unit tests and a router mounting supertest suite (both using ${relativeImport}).
-
-    12) OUTPUT CONSTRAINTS
-    - Output ONLY the full, runnable Jest test file content. Do NOT include any extra commentary, explanation, or Markdown. The test file must import the target using ${relativeImport} exactly.
-
+    7. **ENVIRONMENT VARIABLES (SECURE AND DETERMINISTIC)**
+     - ALWAYS use process.env.VARIABLE_NAME directly in test cases - never hardcode values or assume variables exist.
+     - Environment variables are loaded from .env.example file to identify variable names (without revealing sensitive API keys).
+     - Use the exact environment variables provided above in the ENVIRONMENT VARIABLES section.
+     - Safe pattern for setting up test environment:
+       \`\`\`js
+       const ORIGINAL_ENV = process.env;
+       beforeEach(() => {
+         jest.resetModules();
+         process.env = {
+           ...ORIGINAL_ENV,
+           NODE_ENV: 'test',
+           MONGODB_URI: 'mongodb://localhost:27017/testdb',
+           JWT_SECRET: 'test-jwt-secret-key-for-testing',
+           FRONTEND_URL: 'http://localhost:5173',
+           INTERNAL_API_KEY: 'test-internal-api-key',
+           PORT: '3001',
+           SOCKET_PORT: '5002',
+           // Add other specific env vars as needed from the list above
+         };
+       });
+       afterEach(() => {
+         process.env = ORIGINAL_ENV;
+         jest.clearAllMocks();
+       });
+       \`\`\`
+     - If a module reads env variables at import time, set 'process.env' before requiring it inside each test case that needs different values.
+     - Always use the specific environment variable names and values from the ENVIRONMENT VARIABLES section above.
+     - Test cases MUST reference environment variables like process.env.JWT_SECRET, process.env.MONGODB_URI, process.env.FRONTEND_URL etc. using the exact values provided.
+     - NEVER use hardcoded strings like 'your-jwt-secret' - always use process.env.VARIABLE_NAME.
+    
+    8. **OUTPUT CONSTRAINTS**
+     - Output only valid Jest test code.
+     - Do NOT include Markdown, explanations, or extra commentary.
+     - Ensure the code is self-contained, runnable, and imports the correct model/app.
+    
     STRICT FINAL INSTRUCTION:
-    - Do NOT fabricate behavior. Mock dependencies instead of assuming library error messages. Return only valid Jest test code.
-    - Do NOT include any delimiters like '''javascript''' or '''python''' or any other, just provide the code directly.
+    Rewrite or extend the test file so it matches the real code implementation, fixes failing assertions, properly handles exports and mocks, and improves coverage.  
+    Do not fabricate behavior.  
     `;
 }
-
