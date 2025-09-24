@@ -13,7 +13,6 @@ const testRoutes = require('./routes/test.routes');
 const redis = require('./redis.connection');
 const io = require('./socket.server');
 const airoutes = require('./routes/ai.routes');
-const adminRoutes = require('./routes/admin.routes');
 const maintenanceRoutes = require('./routes/maintenance');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');

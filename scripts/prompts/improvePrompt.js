@@ -1,4 +1,4 @@
-export default function improvePromptTemplate(fileContent, relativeImport, errorLogs) {
+export default function improvePromptTemplate(fileContent, relativeImport, errorLogs, envVariables = null, errorAnalysis = null) {
   return `
 You are an expert Jest test fixer.  
 Previous tests failed or coverage was too low.
@@ -12,6 +12,31 @@ ${fileContent}
 
 === ERROR LOGS / UNCOVERED BRANCHES ===
 ${errorLogs}
+
+${errorAnalysis ? `
+=== ERROR ANALYSIS ===
+Path Errors: ${errorAnalysis.pathErrors.join(', ')}
+Mock Errors: ${errorAnalysis.mockErrors.length}
+Syntax Errors: ${errorAnalysis.syntaxErrors.length}
+Priority Fixes: ${errorAnalysis.suggestions.join(', ')}
+` : ''}
+
+CRITICAL IMPORT PATH RULES:
+1. **CONTROLLER IMPORTS** - Use exact relative path:
+   const { functionName } = require("${relativeImport}");
+
+2. **MODEL IMPORTS** - From test location tests/server/controller/ to models:
+   const ModelName = require("../../../server/models/modelname.model");
+   
+3. **OTHER SERVER MODULES**:
+   const io = require("../../../server/socket.server");
+   const redis = require("../../../server/redis.connection");
+
+4. **JEST MOCK ORDER** - Place ALL jest.mock() calls at TOP before any requires:
+   jest.mock("../../../server/models/chat.model");
+   jest.mock("../../../server/models/doubt.model");
+   jest.mock("../../../server/socket.server");
+   jest.mock("../../../server/redis.connection");
 
 RULES FOR FIXING:
 1. **ANALYZE FAILURES**
