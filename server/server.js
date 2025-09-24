@@ -46,7 +46,6 @@ app.use('/user', storestatisticRoutes);
 app.use('/doubt', doubtroutes);
 app.use('/chat', chatRoutes);
 app.use('/api/limitation', limitationRoutes);
-app.use('/admin', adminRoutes);
 app.use('/test', testRoutes);
 app.use('/gen', airoutes);
 app.use('/maintenance', maintenanceRoutes);
