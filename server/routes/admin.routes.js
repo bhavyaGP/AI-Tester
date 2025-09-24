@@ -13,7 +13,6 @@ const {
 
 router.get("/orders/stats", verifyAdmin, getOrderStats);
 router.get("/orders", verifyAdmin, getOrders);
-router.get("/teachers/pending", verifyAdmin, getPendingTeacherRequests);
 router.post("/teachers/handle-request", verifyAdmin, handleTeacherRequest);
 router.get("/new-students", verifyAdmin, getNewStudents);
 

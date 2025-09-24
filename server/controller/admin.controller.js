@@ -3,29 +3,7 @@ const Teacher = require("../models/teacher.model");
 const Student = require("../models/student.model");
 const redis = require("../redis.connection");
 
-// Get all pending teacher requests
-async function getPendingTeacherRequests(req, res) {
-  try {
-    // Find all teachers with pending approval status
-    const pendingTeachers = await Teacher.find({
-      approvalStatus: "pending",
-    }).select(
-      "_id username email avatar highestQualification experience subject certification createdAt",
-    );
 
-    res.status(200).json({
-      success: true,
-      pendingTeachers,
-    });
-  } catch (error) {
-    console.error("Error fetching pending teacher requests:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching teacher requests",
-      error: error.message,
-    });
-  }
-}
 
 // Handle teacher approval/rejection
 async function handleTeacherRequest(req, res) {
@@ -168,7 +146,6 @@ async function getNewStudents(req, res) {
 }
 
 module.exports = {
-  getPendingTeacherRequests,
   handleTeacherRequest,
   getNewStudents,
 };
