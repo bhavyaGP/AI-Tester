@@ -140,32 +140,7 @@ async function handleTeacherRequest(req, res) {
 }
 
 // Get new student registrations
-async function getNewStudents(req, res) {
-  try {
-    // Get students registered in the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const newStudents = await Student.find({
-      createdAt: { $gte: thirtyDaysAgo },
-    })
-      .select("_id username email avatar membership createdAt")
-      .sort({ createdAt: -1 })
-      .limit(50);
-
-    res.status(200).json({
-      success: true,
-      students: newStudents,
-    });
-  } catch (error) {
-    console.log("Error fetching new students:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error fetching new students",
-      error: error.message,
-    });
-  }
-}
 
 module.exports = {
   getPendingTeacherRequests,
