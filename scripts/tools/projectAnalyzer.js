@@ -96,7 +96,7 @@ export class ProjectStructureAnalyzer {
     const excludeDirs = [
       'node_modules', '.git', '.vscode', '.idea',
       'coverage', 'dist', 'build', 'out', 'tmp', 'temp',
-      'logs', 'log', 'scripts', 'docs', 'documentation',
+      'logs', 'log', /* allow 'scripts' to be included for code under scripts */ 'docs', 'documentation',
       'assets', 'static', 'public', 'uploads'
     ];
     
@@ -115,7 +115,7 @@ export class ProjectStructureAnalyzer {
     // Include only directories that likely contain source code
     const sourceIndicators = [
       'server', 'src', 'lib', 'app', 'api', 'backend',
-      'controller', 'model', 'service', 'middleware',
+      'controller', 'model', 'service', 'middleware', 'scripts',
       'route', 'util', 'helper', 'config', 'component'
     ];
     
@@ -386,13 +386,27 @@ export class ProjectStructureAnalyzer {
       if (name) exports.push(name);
     }
     
-    // Extract module.exports for CommonJS
+    // Extract module.exports for CommonJS (object literal)
     const moduleExportMatches = content.match(/module\.exports\s*=\s*{([^}]+)}/g) || [];
     for (const match of moduleExportMatches) {
       const names = match.match(/{([^}]+)}/)?.[1];
       if (names) {
         exports.push(...names.split(',').map(n => n.trim().split(':')[0]));
       }
+    }
+
+    // Extract CommonJS direct function/object export: module.exports = function name() {} OR anonymous
+    const moduleExportsFunc = content.match(/module\.exports\s*=\s*(?:async\s+)?function\s*(\w+)?\s*\(/);
+    if (moduleExportsFunc) {
+      const fnName = moduleExportsFunc[1];
+      if (fnName) exports.push(fnName);
+    }
+
+    // Extract individual assignments: module.exports.name = ...
+    const propAssignMatches = content.match(/module\.exports\.(\w+)\s*=\s*/g) || [];
+    for (const m of propAssignMatches) {
+      const name = m.match(/module\.exports\.(\w+)/)?.[1];
+      if (name) exports.push(name);
     }
     
     return [...new Set(exports)]; // Remove duplicates

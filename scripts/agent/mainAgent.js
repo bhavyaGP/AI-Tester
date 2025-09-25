@@ -3,8 +3,9 @@ import path from "path";
 import jestPromptTemplate from "../prompts/jestPrompt.js";
 import dbPromptTemplate from "../prompts/dbPrompt.js";
 import controllerPromptTemplate from "../prompts/controllerPrompt.js";
-import { getRelativeImport, ensureDir } from "../tools/pathUtils.js";
+import { ensureDir } from "../tools/pathUtils.js";
 import { cleanGeneratedCode, validateGeneratedCode } from "../tools/codeCleanup.js";
+import { mergeTestContents } from "../tools/testMergeUtils.js";
 import { analyzeProjectStructure } from "../tools/projectAnalyzer.js";
 import { ai } from "../config/aiconfig.js";
 
@@ -53,7 +54,7 @@ function analyzeCodePatterns(fileContent) {
   patterns.models = patterns.imports
     .filter(imp => imp.includes('model') || imp.includes('/models/'))
     .map(imp => {
-      const modelName = imp.split('/').pop().replace('.model', '');
+      const modelName = imp.split('/').pop().replace(/\.model(\.js)?$/, '');
       return modelName;
     });
 
@@ -65,7 +66,7 @@ function analyzeCodePatterns(fileContent) {
   });
 
   // Extract response patterns
-  const responseMatches = fileContent.match(/res\.(status\(\d+\)\.)?json\([^)]*\)/g) || [];
+  const responseMatches = fileContent.match(/res\.(?:status\(\d+\)\.)?(?:json|send)\([^)]*\)/g) || [];
   patterns.responsePatterns = responseMatches;
 
   // Extract conditional branches
@@ -75,15 +76,15 @@ function analyzeCodePatterns(fileContent) {
     return condition ? condition[1].trim() : '';
   });
 
-  // Extract async operations
-  const asyncMatches = fileContent.match(/await\s+\w+\.\w+\([^)]*\)/g) || [];
+  // Extract async operations (await fn(...) or await obj.method(...))
+  const asyncMatches = fileContent.match(/await\s+(?:[A-Za-z_$][\w$]*\s*\(|(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\s*\()/g) || [];
   patterns.asyncOperations = asyncMatches;
 
   return patterns;
 }
 
 async function mainAgent(file, options = {}) {
-  const { dryRun = false } = options;
+  const { dryRun = false, focusExports = null } = options;
   if (!fs.existsSync(file)) {
     console.log(`⚠️ File ${file} does not exist. Skipping.`);
     return;
@@ -91,7 +92,13 @@ async function mainAgent(file, options = {}) {
   
   // Use dynamic project structure analysis
   const projectAnalyzer = analyzeProjectStructure();
-  const fileContent = fs.readFileSync(file, "utf8");
+  let fileContent = '';
+  try {
+    fileContent = fs.readFileSync(file, "utf8");
+  } catch (err) {
+    console.error(`❌ Failed to read file ${file}:`, err?.message || err);
+    return;
+  }
   
   // Get dynamic test file path and import statements
   const testFilePath = projectAnalyzer.getTestFilePath(file);
@@ -123,16 +130,18 @@ async function mainAgent(file, options = {}) {
     asyncOperations: codePatterns.asyncOperations.length
   });
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    config: {
-      temperature: 0.2,
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [{
-          text: `You are a Senior Unit Tester specializing in Jest test generation. Your role is to create focused, high-quality unit tests that match the ACTUAL implementation patterns in the provided code. 
+  let response;
+  try {
+    response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      config: {
+        temperature: 0.2,
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{
+            text: `You are a Senior Unit Tester specializing in Jest test generation. Your role is to create focused, high-quality unit tests that match the ACTUAL implementation patterns in the provided code. 
 
 CRITICAL OUTPUT REQUIREMENTS:
 - OUTPUT ONLY RAW JAVASCRIPT CODE
@@ -159,16 +168,24 @@ DETECTED CODE PATTERNS:
 PROJECT STRUCTURE INFO:
 - Project type: ${projectAnalyzer.structure.type}
 - Package type: ${projectAnalyzer.structure.packageType}
-- Generated import statements to use: ${importStatements.join('\n')}
+                - Generated import statements to use: ${importStatements.join('\n')}
+                - Targeted exports to focus on (if provided): ${(focusExports && focusExports.length) ? focusExports.join(', ') : 'ALL'}
 
 Use these patterns to generate accurate tests that match the actual implementation. Use the provided import statements EXACTLY as given. OUTPUT ONLY THE JEST TEST CODE - NO MARKDOWN, NO EXPLANATIONS.` }]
-      },
-      {
-        role: "user",
-        parts: [{ text: prompt }]
-      }
-    ],
-  });
+        },
+        {
+          role: "user",
+          parts: [{ text: prompt }]
+        }
+      ],
+    });
+  } catch (err) {
+    console.error(`❌ AI generation failed for ${file}:`, err?.message || err);
+    if (dryRun) {
+      return { testFilePath, content: '' };
+    }
+    return testFilePath;
+  }
   
   // Get the raw response
   let rawOutput = (response && ((response.message && response.message.content) || response.text)) || '';
@@ -187,8 +204,19 @@ Use these patterns to generate accurate tests that match the actual implementati
     return { testFilePath, content: cleanedOutput };
   }
 
-  // Write the cleaned code to file
-  fs.writeFileSync(testFilePath, cleanedOutput);
+  // Write or merge the cleaned code to file
+  try {
+    if (focusExports && Array.isArray(focusExports) && focusExports.length > 0 && fs.existsSync(testFilePath)) {
+      const existing = fs.readFileSync(testFilePath, 'utf8');
+      const merged = mergeTestContents(existing, cleanedOutput);
+      fs.writeFileSync(testFilePath, merged);
+    } else {
+      fs.writeFileSync(testFilePath, cleanedOutput);
+    }
+  } catch (err) {
+    console.error(`❌ Failed to write test file ${testFilePath}:`, err?.message || err);
+    return;
+  }
   return testFilePath;
 }
 

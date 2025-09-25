@@ -52,7 +52,10 @@ export async function processChangedFilesWithMutationStrategy(files, options = {
   for (const f of files) {
     try {
       const res = await processFileWithMutationStrategy(f, options);
-      console.log(res)
+      if (res) {
+        // Keep output concise to avoid noisy logs in CI
+        console.log(`✅ Mutation processed: ${res.mode} -> ${res.testFilePath}`);
+      }
       if (res) results.push(res);
     } catch (err) {
       console.error(`❌ Mutation processing failed for ${f}:`, err?.message || err);

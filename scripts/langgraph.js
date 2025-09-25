@@ -2,8 +2,10 @@ import { StateGraph } from "@langchain/langgraph";
 import { mainAgent } from "./agent/mainAgent.js";
 import { improveAgent } from "./agent/improveAgent.js";
 import { runCoverage } from "./tools/coverageUtils.js";
-import { getChangedFiles } from "./tools/gitdiffUtils.js";
+import { getChangedFiles, getChangedFilesDetailed, getExportDiff, isLargeChange } from "./tools/gitdiffUtils.js";
+import { mergeTestContents, removeTestsForExports } from "./tools/testMergeUtils.js";
 import { setupProduction, validateProduction } from "./tools/productionSetup.js";
+import { scanSuggestionsForFile } from "./tools/suggestionUtils.js";
 import fs from "fs";
 import path from "path";
 
@@ -43,6 +45,25 @@ function buildWorkflow() {
     }
     
     return { ...state, setupComplete: true };
+  });
+
+  // Node 1: Check existing coverage
+  // New: Suggestions node runs before coverage checks so issues are surfaced even if we skip generation
+  workflow.addNode("suggestions", async (state) => {
+    try {
+      const suggestions = scanSuggestionsForFile(state.file);
+      if (suggestions && suggestions.length > 0) {
+        console.log("\n💡 Suggested improvements detected:");
+        for (const s of suggestions) {
+          console.log(`- ${s}`);
+        }
+      } else {
+        console.log("\n✅ No code-quality suggestions detected for this file");
+      }
+    } catch (e) {
+      console.warn("⚠️ Suggestion scan failed:", e?.message || e);
+    }
+    return state;
   });
 
   // Node 1: Check existing coverage
@@ -119,7 +140,8 @@ function buildWorkflow() {
   });
 
   // Conditional edges
-  workflow.addEdge("productionSetup", "checkExisting");
+  workflow.addEdge("productionSetup", "suggestions");
+  workflow.addEdge("suggestions", "checkExisting");
   workflow.addEdge("checkExisting", "__end__", (state) => state.skipGeneration);
   workflow.addEdge("checkExisting", "mainAgent", (state) => !state.skipGeneration);
   workflow.addEdge("mainAgent", "coverageTool");
@@ -133,7 +155,8 @@ function buildWorkflow() {
       console.log(`✅ Target coverage ${state.coverage}% achieved for ${state.file}`);
       return "__end__"; // stop
     }
-    if (state.attempts >= 2) {
+    console.log("🔍 Current attempts is :", state.attempts);
+    if (state.attempts >= 3) {
       console.log(`❌ Max attempts reached for ${state.file}`);
       return "__end__";
     }
@@ -148,34 +171,80 @@ function buildWorkflow() {
 async function runLangGraph() {
   console.log("🚀 Starting AI Test Generation Pipeline...");
   
-  // Get files to test
-  const files = getChangedFiles();
-  if (files.length === 0) {
+  // Determine changed files with statuses
+  const diffs = getChangedFilesDetailed();
+  if (diffs.length === 0) {
     console.log("⚠️ No relevant JS files changed.");
     return;
   }
 
-  console.log(`📁 Found ${files.length} files to test: ${files.join(', ')}`);
+  console.log(`📁 Found ${diffs.length} changed files to process.`);
   
   const workflow = buildWorkflow();
 
-  for (const file of files) {
-    console.log(`\n🎯 Running LangGraph pipeline for ${file}`);
-    const result = await workflow.invoke({ 
-      file, 
-      coverage: 0, 
-      attempts: 0, 
-      errorLogs: "", 
-      skipGeneration: false,
-      setupComplete: false 
-    });
-    
-    if (result.coverage >= COVERAGE_THRESHOLD) {
-      console.log(`🎉 Successfully achieved ${result.coverage}% coverage for ${file}`);
-    } else if (result.skipGeneration) {
-      console.log(`⏭️ Skipped ${file} (already has sufficient coverage or setup failed)`);
-    } else {
-      console.log(`⚠️ Final coverage for ${file}: ${result.coverage}% (target: ${COVERAGE_THRESHOLD}%)`);
+  for (const entry of diffs) {
+    const file = entry.path;
+    const status = entry.status;
+    console.log(`\n🎯 Processing ${status} ${file}`);
+
+    const testFileName = file.replace(/\.(js|ts)$/, '.test.js');
+    const testPath = testFileName.replace(/^(server\/|scripts\/)/, 'tests/$1');
+
+    if (status === 'D') {
+      // Delete corresponding test file
+      if (fs.existsSync(testPath)) {
+        fs.rmSync(testPath, { force: true });
+        console.log(`🗑️ Removed test file for deleted source: ${testPath}`);
+      }
+      continue;
+    }
+
+    // For added or modified files
+    if (status === 'A') {
+      // New file → generate full tests
+      const result = await workflow.invoke({ file, coverage: 0, attempts: 0, errorLogs: "", skipGeneration: false, setupComplete: false });
+      if (result.coverage >= COVERAGE_THRESHOLD) {
+        console.log(`🎉 Successfully achieved ${result.coverage}% coverage for ${file}`);
+      }
+      continue;
+    }
+
+    if (status === 'M' || status === 'R') {
+      // If the change is huge, treat as replaced
+      const replaced = isLargeChange(file);
+      if (replaced) {
+        if (fs.existsSync(testPath)) {
+          fs.rmSync(testPath, { force: true });
+          console.log(`♻️ Large change detected, regenerating tests from scratch for ${file}`);
+        }
+        const result = await workflow.invoke({ file, coverage: 0, attempts: 0, errorLogs: "", skipGeneration: false, setupComplete: false });
+        if (result.coverage >= COVERAGE_THRESHOLD) {
+          console.log(`🎉 Successfully achieved ${result.coverage}% coverage for ${file}`);
+        }
+        continue;
+      }
+
+      // Otherwise, compute export-level diff
+      const { added, removed, unchanged } = getExportDiff(file);
+      const focus = [...added]; // prioritize newly added exports
+
+      // If there is an existing test file and removed exports, prune tests
+      if (fs.existsSync(testPath) && removed.length > 0) {
+        try {
+          const existing = fs.readFileSync(testPath, 'utf8');
+          const pruned = removeTestsForExports(existing, removed);
+          if (pruned !== existing) {
+            fs.writeFileSync(testPath, pruned);
+            console.log(`✂️ Pruned tests for removed exports [${removed.join(', ')}] in ${testPath}`);
+          }
+        } catch {}
+      }
+
+      // Generate tests focused on added exports; if none, allow improvement for coverage
+      const result = await workflow.invoke({ file, coverage: 0, attempts: 0, errorLogs: "", skipGeneration: false, setupComplete: false, focusExports: focus });
+      if (result.coverage >= COVERAGE_THRESHOLD) {
+        console.log(`🎉 Successfully achieved ${result.coverage}% coverage for ${file}`);
+      }
     }
   }
   
