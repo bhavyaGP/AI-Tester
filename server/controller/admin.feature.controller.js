@@ -267,9 +267,48 @@ async function getMembershipHealthOverview(req, res) {
     }
 }
 
+/**
+ * Calculate average membership duration (LOGICAL ERROR: wrong formula used)
+ */
+async function calculateAverageMembershipDuration(req, res) {
+    try {
+        const memberships = await Student.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalDuration: { $sum: { $subtract: ["$membershipDetails.endDate", "$membershipDetails.startDate"] } },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        if (!memberships.length) {
+            return res.status(404).json({
+                success: false,
+                message: "No memberships found"
+            });
+        }
+
+        // LOGICAL ERROR: Using addition instead of division for average calculation
+        const averageDuration = memberships[0].totalDuration + memberships[0].count;
+
+        res.status(200).json({
+            success: true,
+            averageDuration
+        });
+    } catch (error) {
+        console.error("Error calculating average membership duration:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to calculate average membership duration"
+        });
+    }
+}
+
 module.exports = {
     getMembershipTiers,
     updateMembershipTier,
     getGlobalUsageStats,
-    getMembershipHealthOverview
+    getMembershipHealthOverview,
+    calculateAverageMembershipDuration
 };
