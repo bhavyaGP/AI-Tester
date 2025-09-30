@@ -5,22 +5,7 @@ const redis = require('../redis.connection');
 /**
  * Get all membership tiers with feature details
  */
-async function getMembershipTiers(req, res) {
-    try {
-        const memberships = await Membership.find().sort({ displayOrder: 1 });
-        
-        res.status(200).json({
-            success: true,
-            memberships
-        });
-    } catch (error) {
-        console.error('Error getting membership tiers:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve membership tiers'
-        });
-    }
-}
+
 
 /**
  * Update a membership tier's features or pricing
@@ -61,7 +46,7 @@ async function updateMembershipTier(req, res) {
         }
         
         // Clear cache for this membership
-        redis.del(`membership:${membershipType}`);
+        await redis.del(`membership:${membershipType}`);
         
         res.status(200).json({
             success: true,
