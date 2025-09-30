@@ -61,7 +61,7 @@ async function updateMembershipTier(req, res) {
         }
         
         // Clear cache for this membership
-        await redis.del(`membership:${membershipType}`);
+        redis.del(`membership:${membershipType}`);
         
         res.status(200).json({
             success: true,
