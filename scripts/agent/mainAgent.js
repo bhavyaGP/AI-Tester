@@ -18,7 +18,12 @@ function analyzeCodePatterns(fileContent) {
     asyncOperations: [],
     exports: [],
     imports: [],
-    models: []
+    models: [],
+    isRoute: false,
+    mongooseQueryChains: [],
+    constructors: [],
+    missingElseBranches: [],
+    uncoveredEdgeCases: []
   };
 
   // Extract exports
@@ -50,7 +55,12 @@ function analyzeCodePatterns(fileContent) {
     })
   ].filter(Boolean);
 
-  // Extract model dependencies
+  // Detect Express routes
+  if (/\bexpress\(|\brouter\.get\b|\brouter\.post\b|\bapp\.get\b|\bapp\.post\b/.test(fileContent)) {
+    patterns.isRoute = true;
+  }
+
+  // Extract model dependencies and detect Mongoose query chains
   patterns.models = patterns.imports
     .filter(imp => imp.includes('model') || imp.includes('/models/'))
     .map(imp => {
@@ -58,12 +68,46 @@ function analyzeCodePatterns(fileContent) {
       return modelName;
     });
 
+  // Detect Mongoose chained queries like Model.find(...).sort(...).limit(...)
+  const chainRegex = /(\w+)\.find\([^)]*\)(?:\s*\.\s*(\w+)\([^)]*\))+/g;
+  let match;
+  while ((match = chainRegex.exec(fileContent)) !== null) {
+    const model = match[1];
+    const methodsFound = [];
+    const fullMatch = match[0];
+    const methodMatches = fullMatch.matchAll(/\.(\w+)\(/g);
+    for (const m of methodMatches) {
+      methodsFound.push(m[1]);
+    }
+    patterns.mongooseQueryChains.push({ model, methods: methodsFound });
+    if (!patterns.models.includes(model)) {
+      patterns.models.push(model);
+    }
+  }
+
+  // Detect constructors (new Model(...))
+  const ctorRegex = /new\s+([A-Z]\w+)\s*\(/g;
+  while ((match = ctorRegex.exec(fileContent)) !== null) {
+    if (!patterns.constructors.includes(match[1])) {
+      patterns.constructors.push(match[1]);
+    }
+    if (!patterns.models.includes(match[1])) {
+      patterns.models.push(match[1]);
+    }
+  }
+
   // Extract error handling patterns
   const tryCatchMatches = fileContent.match(/try\s*{[\s\S]*?}\s*catch\s*\([^)]*\)\s*{[\s\S]*?}/g) || [];
   patterns.errorHandling = tryCatchMatches.map(match => {
     const catchBlock = match.match(/catch\s*\([^)]*\)\s*{([\s\S]*?)}/);
     return catchBlock ? catchBlock[1].trim() : '';
   });
+
+  // Detect missing else branches (if without else)
+  const ifWithoutElseRegex = /if\s*\([^)]*\)\s*{[^}]*}(?!\s*else)/g;
+  while ((match = ifWithoutElseRegex.exec(fileContent)) !== null) {
+    patterns.missingElseBranches.push(match[0]);
+  }
 
   // Extract response patterns
   const responseMatches = fileContent.match(/res\.(?:status\(\d+\)\.)?(?:json|send)\([^)]*\)/g) || [];
@@ -80,7 +124,55 @@ function analyzeCodePatterns(fileContent) {
   const asyncMatches = fileContent.match(/await\s+(?:[A-Za-z_$][\w$]*\s*\(|(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\s*\()/g) || [];
   patterns.asyncOperations = asyncMatches;
 
+  // Detect potential edge cases that might not be covered
+  if (fileContent.includes('.length') && !fileContent.includes('if') && !fileContent.includes('?')) {
+    patterns.uncoveredEdgeCases.push('Array/String length used without null/empty check');
+  }
+  if (fileContent.includes('JSON.parse') && !patterns.errorHandling.length) {
+    patterns.uncoveredEdgeCases.push('JSON.parse without try-catch');
+  }
+
   return patterns;
+}
+
+// Generate mock setup code based on detected patterns
+function generateMockSetup(patterns) {
+  let mockSetup = '';
+
+  // Generate mocks for Mongoose query chains
+  for (const chain of patterns.mongooseQueryChains) {
+    const { model, methods } = chain;
+    const mockQueryName = `mock${model}Query`;
+    mockSetup += `\n// Mock ${model} query chain\nconst ${mockQueryName} = {\n`;
+    
+    for (const method of methods) {
+      if (method === 'find') continue; // Skip find, we mock it separately
+      // Methods like sort, limit, populate should return this for chaining
+      if (['sort', 'limit', 'populate', 'select', 'skip'].includes(method)) {
+        mockSetup += `  ${method}: jest.fn().mockReturnThis(),\n`;
+      } else if (['exec', 'then'].includes(method)) {
+        mockSetup += `  ${method}: jest.fn().mockResolvedValue([]),\n`;
+      }
+    }
+    
+    // Add default exec if not present
+    if (!methods.includes('exec') && !methods.includes('then')) {
+      mockSetup += `  exec: jest.fn().mockResolvedValue([]),\n`;
+    }
+    
+    mockSetup += `};\n${model}.find = jest.fn().mockReturnValue(${mockQueryName});\n`;
+  }
+
+  // Generate mocks for constructors
+  for (const constructor of patterns.constructors) {
+    mockSetup += `\n// Mock ${constructor} constructor\n`;
+    mockSetup += `${constructor}.mockImplementation((data) => ({\n`;
+    mockSetup += `  ...data,\n`;
+    mockSetup += `  save: jest.fn().mockResolvedValue(data),\n`;
+    mockSetup += `}));\n`;
+  }
+
+  return mockSetup;
 }
 
 async function mainAgent(file, options = {}) {
@@ -95,9 +187,16 @@ async function mainAgent(file, options = {}) {
   let fileContent = '';
   try {
     fileContent = fs.readFileSync(file, "utf8");
+    
+    // Truncate very large files to prevent API payload issues
+    const maxFileSize = 15000; // Limit to 15000 chars
+    if (fileContent.length > maxFileSize) {
+      console.log(`⚠️ Large file detected (${fileContent.length} chars), truncating to ${maxFileSize} chars`);
+      fileContent = fileContent.substring(0, maxFileSize) + '\n\n// ... (file truncated for API transmission)';
+    }
   } catch (err) {
     console.error(`❌ Failed to read file ${file}:`, err?.message || err);
-    return;
+    throw new Error(`File read error: ${err?.message || err}`);
   }
   
   // Get dynamic test file path and import statements
@@ -109,6 +208,9 @@ async function mainAgent(file, options = {}) {
 
   // Analyze code patterns to provide better context
   const codePatterns = analyzeCodePatterns(fileContent);
+  
+  // Generate mock setup based on patterns
+  const mockSetupCode = generateMockSetup(codePatterns);
 
   // Choose appropriate prompt based on file type
   let prompt;
@@ -125,23 +227,33 @@ async function mainAgent(file, options = {}) {
   console.log(`📦 Project type: ${projectAnalyzer.structure.type}`);
   console.log(`📊 Detected patterns:`, {
     exports: codePatterns.exports,
+    models: codePatterns.models.length,
+    mongooseChains: codePatterns.mongooseQueryChains.length,
+    constructors: codePatterns.constructors.length,
     responsePatterns: codePatterns.responsePatterns.length,
     conditionalBranches: codePatterns.conditionalBranches.length,
-    asyncOperations: codePatterns.asyncOperations.length
+    asyncOperations: codePatterns.asyncOperations.length,
+    isRoute: codePatterns.isRoute
   });
 
   let response;
-  try {
-    response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      config: {
-        temperature: 0.2,
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [{
-            text: `You are a Senior Unit Tester specializing in Jest test generation. Your role is to create focused, high-quality unit tests that match the ACTUAL implementation patterns in the provided code. 
+  let retryCount = 0;
+  const maxRetries = 3;
+  const timeoutMs = 120000; // 120 seconds timeout (increased for complex test generation)
+  
+  while (retryCount < maxRetries) {
+    try {
+      // Wrap the API call with a timeout
+      const apiCallPromise = ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        config: {
+          temperature: 0.2,
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{
+              text: `You are a Senior Unit Tester specializing in Jest test generation. Your role is to create focused, high-quality unit tests that match the ACTUAL implementation patterns in the provided code. 
 
 CRITICAL OUTPUT REQUIREMENTS:
 - OUTPUT ONLY RAW JAVASCRIPT CODE
@@ -159,11 +271,35 @@ CRITICAL ANALYSIS REQUIRED:
 5. Avoid over-testing theoretical edge cases that the code doesn't handle
 6. Focus on achieving good coverage of the actual implemented code paths with tests that will actually pass
 
+DYNAMIC MOCKING GUIDANCE:
+${mockSetupCode ? `
+Detected patterns require the following mock setup (use this in your beforeEach):
+${mockSetupCode}
+` : ''}
+${codePatterns.isRoute ? `
+ROUTE FILE DETECTED:
+- This is an Express route file. Use supertest or manual req/res simulation.
+- Mock all imported controllers before defining routes.
+- Test by simulating HTTP requests and verifying controller calls.
+- Example: const response = await request(app).post('/login').send({...});
+` : ''}
+${codePatterns.mongooseQueryChains.length > 0 ? `
+MONGOOSE QUERY CHAINS DETECTED:
+- Found ${codePatterns.mongooseQueryChains.length} chained queries (e.g., Model.find().sort().limit())
+- Create mock query objects with chained methods returning 'this' or resolved values
+- Example: const mockQuery = { sort: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue([]) };
+- Then: Model.find.mockReturnValue(mockQuery);
+` : ''}
+
 DETECTED CODE PATTERNS:
 - Exports: ${codePatterns.exports.join(', ')}
+- Models: ${codePatterns.models.join(', ')}
+- Constructors: ${codePatterns.constructors.join(', ')}
 - Response patterns: ${codePatterns.responsePatterns.join(', ')}
-- Conditional branches: ${codePatterns.conditionalBranches.join(', ')}
-- Async operations: ${codePatterns.asyncOperations.join(', ')}
+- Conditional branches: ${codePatterns.conditionalBranches.length}
+- Async operations: ${codePatterns.asyncOperations.length}
+${codePatterns.missingElseBranches.length > 0 ? `- ⚠️ Missing else branches detected: ${codePatterns.missingElseBranches.length}` : ''}
+${codePatterns.uncoveredEdgeCases.length > 0 ? `- ⚠️ Potential edge cases: ${codePatterns.uncoveredEdgeCases.join(', ')}` : ''}
 
 PROJECT STRUCTURE INFO:
 - Project type: ${projectAnalyzer.structure.type}
@@ -179,12 +315,37 @@ Use these patterns to generate accurate tests that match the actual implementati
         }
       ],
     });
-  } catch (err) {
-    console.error(`❌ AI generation failed for ${file}:`, err?.message || err);
-    if (dryRun) {
-      return { testFilePath, content: '' };
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('API request timed out')), timeoutMs)
+      );
+      
+      // Race between API call and timeout
+      response = await Promise.race([apiCallPromise, timeoutPromise]);
+      
+      // If successful, break out of retry loop
+      console.log(`✅ AI generation successful for ${file}`);
+      break;
+      
+    } catch (err) {
+      retryCount++;
+      const isTimeout = err?.message?.includes('timeout') || err?.message?.includes('timed out');
+      
+      if (retryCount >= maxRetries) {
+                console.error(`❌ AI generation failed for ${file} after ${maxRetries} attempts:`, err?.message || err);
+        throw new Error(`AI generation failed: ${err?.message || err}`);
+        if (dryRun) {
+          return { testFilePath, content: '' };
+        }
+        return testFilePath;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const waitTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+      console.log(`⚠️ ${isTimeout ? 'Timeout' : 'Error'} on attempt ${retryCount}/${maxRetries}. Retrying in ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
-    return testFilePath;
   }
   
   // Get the raw response
@@ -215,7 +376,7 @@ Use these patterns to generate accurate tests that match the actual implementati
     }
   } catch (err) {
     console.error(`❌ Failed to write test file ${testFilePath}:`, err?.message || err);
-    return;
+    throw new Error(`File write error: ${err?.message || err}`);
   }
   return testFilePath;
 }

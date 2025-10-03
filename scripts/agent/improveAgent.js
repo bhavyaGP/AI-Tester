@@ -65,16 +65,24 @@ async function improveAgent(file, errorLogs) {
   // Ensure test directory exists
   ensureDir(path.dirname(testFilePath));
   
-  // Analyze error context for better improvement targeting
-  const errorAnalysis = analyzeErrorContext(errorLogs);
+  // Truncate very long error logs to prevent API payload issues
+  let truncatedErrorLogs = errorLogs;
+  const maxErrorLogLength = 8000; // Limit error logs to 8000 chars
+  if (errorLogs && errorLogs.length > maxErrorLogLength) {
+    truncatedErrorLogs = errorLogs.substring(0, maxErrorLogLength) + '\n\n... (error log truncated for API transmission)';
+    console.log(`⚠️ Error log truncated from ${errorLogs.length} to ${maxErrorLogLength} chars`);
+  }
   
-  const prompt = improvePromptTemplate(fileContent, importStatements.join('\n'), errorLogs, null, errorAnalysis);
+  // Analyze error context for better improvement targeting
+  const errorAnalysis = analyzeErrorContext(truncatedErrorLogs);
+  
+  const prompt = improvePromptTemplate(fileContent, importStatements.join('\n'), truncatedErrorLogs, null, errorAnalysis);
 
   console.log(`🔄 Improving tests for ${file}`);
   console.log(`📁 Test file: ${testFilePath}`);
   console.log(`📦 Project type: ${projectAnalyzer.structure.type}`);
-  if (errorLogs && errorLogs.trim()) {
-    console.log(`📋 Error context received (${errorLogs.length} chars): ${errorLogs.substring(0, 200)}${errorLogs.length > 200 ? '...' : ''}`);
+  if (truncatedErrorLogs && truncatedErrorLogs.trim()) {
+    console.log(`📋 Error context received (${truncatedErrorLogs.length} chars): ${truncatedErrorLogs.substring(0, 200)}${truncatedErrorLogs.length > 200 ? '...' : ''}`);
     if (errorAnalysis.suggestions.length > 0) {
       console.log(`💡 Key improvements needed: ${errorAnalysis.suggestions.slice(0, 3).join(', ')}`);
     }
@@ -82,16 +90,23 @@ async function improveAgent(file, errorLogs) {
     console.log(`📋 No error context provided`);
   }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    config: {
-      temperature: 0.1, // Lower temperature for more consistent output
-    },
-    contents: [
-      { 
-        role: "user", 
-        parts: [{ 
-          text: `You are an expert Jest test improvement specialist. Your task is to analyze failing tests and fix them to achieve high code coverage.
+  let response;
+  let retryCount = 0;
+  const maxRetries = 3;
+  const timeoutMs = 120000; // 120 seconds timeout (increased for complex improvements)
+  
+  while (retryCount < maxRetries) {
+    try {
+      const apiCallPromise = ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        config: {
+          temperature: 0.1, // Lower temperature for more consistent output
+        },
+        contents: [
+          { 
+            role: "user", 
+            parts: [{ 
+              text: `You are an expert Jest test improvement specialist. Your task is to analyze failing tests and fix them to achieve high code coverage.
 
 CRITICAL OUTPUT REQUIREMENTS:
 - OUTPUT ONLY RAW JAVASCRIPT CODE
@@ -119,11 +134,39 @@ ERROR ANALYSIS:
 - Key improvements needed: ${errorAnalysis.suggestions.join(', ')}
 
 Use the provided import statements EXACTLY as given. Generate corrected Jest test code that addresses these specific issues. Output only raw JavaScript code.`
-        }] 
-      },
-      { role: "user", parts: [{ text: prompt }] }
-    ],
-  });
+            }] 
+          },
+          { role: "user", parts: [{ text: prompt }] }
+        ],
+      });
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('API request timed out')), timeoutMs)
+      );
+      
+      // Race between API call and timeout
+      response = await Promise.race([apiCallPromise, timeoutPromise]);
+      
+      // If successful, break out of retry loop
+      console.log(`✅ Test improvement successful for ${file}`);
+      break;
+      
+    } catch (err) {
+      retryCount++;
+      const isTimeout = err?.message?.includes('timeout') || err?.message?.includes('timed out');
+      
+      if (retryCount >= maxRetries) {
+        console.error(`❌ Test improvement failed for ${file} after ${maxRetries} attempts:`, err?.message || err);
+        throw new Error(`Test improvement failed: ${err?.message || err}`);
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const waitTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+      console.log(`⚠️ ${isTimeout ? 'Timeout' : 'Error'} on attempt ${retryCount}/${maxRetries}. Retrying in ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
 
   // Get raw response and clean it
   let rawOutput = (response && ((response.message && response.message.content) || response.text)) || '';

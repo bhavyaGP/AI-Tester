@@ -35,7 +35,6 @@ export class ProductionSetup {
       // 4. Create missing directories
       await this.createMissingDirectories();
       
-      console.log("✅ Production setup completed successfully!");
       return {
         success: true,
         projectStructure: this.projectAnalyzer.structure,

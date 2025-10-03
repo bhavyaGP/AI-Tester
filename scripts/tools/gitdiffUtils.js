@@ -172,3 +172,122 @@ function getLinesAtRef(filePath, ref) {
     }
   }
 }
+
+/**
+ * Extract function names from JavaScript/Node.js content
+ * Supports various function declaration patterns
+ */
+export function extractFunctionsFromContent(content) {
+  const functions = new Set();
+  if (!content) return [];
+
+  // Regular function declarations
+  const functionDeclMatches = content.match(/(?:export\s+)?(?:async\s+)?function\s+(\w+)/g) || [];
+  functionDeclMatches.forEach(match => {
+    const name = match.match(/function\s+(\w+)/)?.[1];
+    if (name) functions.add(name);
+  });
+
+  // Arrow functions assigned to const/let/var
+  const arrowFunctionMatches = content.match(/(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>/g) || [];
+  arrowFunctionMatches.forEach(match => {
+    const name = match.match(/(?:const|let|var)\s+(\w+)/)?.[1];
+    if (name) functions.add(name);
+  });
+
+  // Methods in objects (including module.exports)
+  const methodMatches = content.match(/(\w+)\s*:\s*(?:async\s+)?(?:function\s*)?\([^)]*\)\s*(?:=>|{)/g) || [];
+  methodMatches.forEach(match => {
+    const name = match.match(/(\w+)\s*:/)?.[1];
+    if (name) functions.add(name);
+  });
+
+  // Class methods
+  const classMethodMatches = content.match(/(?:async\s+)?(\w+)\s*\([^)]*\)\s*{/g) || [];
+  classMethodMatches.forEach(match => {
+    const name = match.match(/(\w+)\s*\(/)?.[1];
+    // Exclude common keywords and constructors
+    if (name && !['if', 'for', 'while', 'switch', 'catch', 'constructor'].includes(name)) {
+      functions.add(name);
+    }
+  });
+
+  return Array.from(functions);
+}
+
+/**
+ * Get functions at a specific git reference
+ */
+export function getFileFunctionsAtRef(filePath, ref) {
+  const content = readFileAtRef(filePath, ref);
+  return extractFunctionsFromContent(content);
+}
+
+/**
+ * Get function-level diff between two versions
+ */
+export function getFunctionDiff(filePath, baseRef = "HEAD~1", headRef = "HEAD") {
+  const beforeFunctions = new Set(getFileFunctionsAtRef(filePath, baseRef));
+  
+  let afterContent = "";
+  try {
+    afterContent = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    afterContent = readFileAtRef(filePath, headRef);
+  }
+  const afterFunctions = new Set(extractFunctionsFromContent(afterContent));
+
+  const removed = Array.from(beforeFunctions).filter(x => !afterFunctions.has(x));
+  const added = Array.from(afterFunctions).filter(x => !beforeFunctions.has(x));
+  const unchanged = Array.from(afterFunctions).filter(x => beforeFunctions.has(x));
+
+  return { added, removed, unchanged };
+}
+
+/**
+ * Analyze the type and percentage of changes in a file
+ */
+export function analyzeFileChanges(filePath, baseRef = "HEAD~1", headRef = "HEAD") {
+  const { insertions, deletions, baseLines } = getFileChangeStats(filePath, baseRef, headRef);
+  const changePercent = getChangePercent(filePath, baseRef, headRef);
+  
+  // Get function and export level changes
+  const functionDiff = getFunctionDiff(filePath, baseRef, headRef);
+  const exportDiff = getExportDiff(filePath, baseRef, headRef);
+  
+  // Determine change type
+  let changeType = 'minor';
+  if (changePercent >= 50) {
+    changeType = 'major';
+  } else if (functionDiff.added.length > 0 || functionDiff.removed.length > 0) {
+    changeType = 'moderate';
+  }
+
+  return {
+    changePercent,
+    changeType,
+    stats: { insertions, deletions, baseLines },
+    functions: functionDiff,
+    exports: exportDiff,
+    shouldRegenerateFromScratch: changePercent >= 50,
+    newFunctionsOnly: functionDiff.added,
+    modifiedAreas: [...functionDiff.added, ...exportDiff.added]
+  };
+}
+
+/**
+ * Enhanced function to check if change is large with configurable threshold
+ */
+export function isLargeChangeEnhanced(filePath, thresholdPercent = 50, baseRef = "HEAD~1", headRef = "HEAD") {
+  try {
+    const analysis = analyzeFileChanges(filePath, baseRef, headRef);
+    return {
+      isLarge: analysis.changePercent >= thresholdPercent,
+      changePercent: analysis.changePercent,
+      changeType: analysis.changeType,
+      analysis
+    };
+  } catch {
+    return { isLarge: false, changePercent: 0, changeType: 'unknown', analysis: null };
+  }
+}
