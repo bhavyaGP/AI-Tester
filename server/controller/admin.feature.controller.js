@@ -137,8 +137,38 @@ async function getGlobalUsageStats(req, res) {
 
 
 
+/**
+ * New test function for testing incremental test generation
+ */
+async function newTestFunction(req, res) {
+    try {
+        const { param } = req.query;
+        
+        if (!param) {
+            return res.status(400).json({
+                success: false,
+                message: 'Param is required'
+            });
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: 'New function executed successfully',
+            data: { param, doubled: param * 2 }
+        });
+    } catch (error) {
+        console.error('Error in new test function:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to execute new function'
+        });
+    }
+}
+
+
 module.exports = {
     getMembershipTiers,
     updateMembershipTier,
-    getGlobalUsageStats
+    getGlobalUsageStats,
+    newTestFunction
 };
