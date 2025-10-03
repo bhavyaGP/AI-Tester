@@ -135,40 +135,81 @@ async function getGlobalUsageStats(req, res) {
     }
 }
 
-
-
 /**
- * New test function for testing incremental test generation
+ * Get feature access report for a specific membership tier
+ * This function returns a detailed report of which features are accessible
+ * for a given membership type
  */
-async function newTestFunction(req, res) {
+async function getFeatureAccessReport(req, res) {
     try {
-        const { param } = req.query;
+        const { membershipType } = req.params;
         
-        if (!param) {
+        if (!membershipType) {
             return res.status(400).json({
                 success: false,
-                message: 'Param is required'
+                message: 'Membership type is required'
             });
         }
         
+        // Find the membership tier
+        const membership = await Membership.findOne({ type: membershipType });
+        
+        if (!membership) {
+            return res.status(404).json({
+                success: false,
+                message: 'Membership tier not found'
+            });
+        }
+        
+        // Build feature access report
+        const report = {
+            membershipType: membership.type,
+            displayName: membership.name,
+            price: membership.price,
+            features: {
+                ytSummary: {
+                    enabled: membership.features?.ytSummary?.enabled || false,
+                    limit: membership.features?.ytSummary?.limit || 0,
+                    description: 'YouTube video summarization'
+                },
+                quiz: {
+                    enabled: membership.features?.quiz?.enabled || false,
+                    limit: membership.features?.quiz?.limit || 0,
+                    description: 'Quiz generation'
+                },
+                chatbot: {
+                    enabled: membership.features?.chatbot?.enabled || false,
+                    limit: membership.features?.chatbot?.limit || 0,
+                    description: 'AI Chatbot access'
+                },
+                mindmap: {
+                    enabled: membership.features?.mindmap?.enabled || false,
+                    limit: membership.features?.mindmap?.limit || 0,
+                    description: 'Mindmap generation'
+                },
+                p2pDoubt: {
+                    enabled: membership.features?.p2pDoubt?.enabled || false,
+                    description: 'Peer-to-peer doubt resolution'
+                }
+            }
+        };
+        
         res.status(200).json({
             success: true,
-            message: 'New function executed successfully',
-            data: { param, doubled: param * 2 }
+            report
         });
     } catch (error) {
-        console.error('Error in new test function:', error);
+        console.error('Error generating feature access report:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to execute new function'
+            message: 'Failed to generate feature access report'
         });
     }
 }
-
 
 module.exports = {
     getMembershipTiers,
     updateMembershipTier,
     getGlobalUsageStats,
-    newTestFunction
+    getFeatureAccessReport
 };
